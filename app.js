@@ -212,6 +212,26 @@ function detailsEditor(value, onChange) {
   colorPicker.setAttribute("aria-label", "Text color");
   colorPicker.addEventListener("input", () => applyFormat("foreColor", colorPicker.value));
 
+  const photoButton = document.createElement("button");
+  photoButton.type = "button";
+  photoButton.textContent = "Photo";
+  photoButton.title = "Insert photo";
+  photoButton.addEventListener("mousedown", (event) => event.preventDefault());
+  photoButton.addEventListener("click", () => {
+    const enteredUrl = window.prompt("Paste an image URL or Google Drive image-sharing link:");
+    if (!enteredUrl) return;
+    const photoUrl = normalizePhotoUrl(enteredUrl);
+    if (!photoUrl) {
+      window.alert("Please enter a valid HTTPS image or Google Drive link.");
+      return;
+    }
+    const image = document.createElement("img");
+    image.src = photoUrl;
+    image.alt = window.prompt("Photo description (optional):") || "";
+    image.loading = "lazy";
+    applyFormat("insertHTML", image.outerHTML);
+  });
+
   toolbar.append(
     toolButton("• List", "insertUnorderedList", null, "Bullet list"),
     toolButton("U", "underline", null, "Underline"),
@@ -219,6 +239,7 @@ function detailsEditor(value, onChange) {
     toolButton("Normal", "fontSize", "3", "Normal text"),
     toolButton("Large", "fontSize", "5", "Large text"),
     colorPicker,
+    photoButton,
   );
   editor.addEventListener("keyup", rememberSelection);
   editor.addEventListener("mouseup", rememberSelection);
@@ -228,13 +249,23 @@ function detailsEditor(value, onChange) {
 }
 
 function richTextHtml(value = "") {
-  const containsMarkup = /<(?:br|div|p|ul|ol|li|u|font)\b/i.test(value);
+  const containsMarkup = /<(?:br|div|p|ul|ol|li|u|font|img)\b/i.test(value);
   const template = document.createElement("template");
   template.innerHTML = containsMarkup ? value : escapeHtml(value).replace(/\n/g, "<br>");
-  const allowedTags = new Set(["BR", "DIV", "P", "UL", "OL", "LI", "U", "FONT"]);
+  const allowedTags = new Set(["BR", "DIV", "P", "UL", "OL", "LI", "U", "FONT", "IMG"]);
   Array.from(template.content.querySelectorAll("*")).forEach((element) => {
     if (!allowedTags.has(element.tagName)) {
       element.replaceWith(document.createTextNode(element.textContent || ""));
+      return;
+    }
+    if (element.tagName === "IMG") {
+      const safeSource = normalizePhotoUrl(element.getAttribute("src") || "");
+      if (!safeSource) { element.remove(); return; }
+      const alt = element.getAttribute("alt") || "";
+      Array.from(element.attributes).forEach((attribute) => element.removeAttribute(attribute.name));
+      element.src = safeSource;
+      element.alt = alt;
+      element.loading = "lazy";
       return;
     }
     Array.from(element.attributes).forEach((attribute) => {
@@ -243,6 +274,20 @@ function richTextHtml(value = "") {
     });
   });
   return template.innerHTML;
+}
+
+function normalizePhotoUrl(value) {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:") return "";
+    if (url.hostname.includes("drive.google.com")) {
+      const fileId = url.pathname.match(/\/d\/([^/]+)/)?.[1] || url.searchParams.get("id");
+      return fileId ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w1600` : "";
+    }
+    return url.href;
+  } catch {
+    return "";
+  }
 }
 
 function embedUrl(url) {
