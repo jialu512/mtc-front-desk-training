@@ -172,31 +172,77 @@ function detailsEditor(value, onChange) {
   wrapper.className = "details-editor";
   const toolbar = document.createElement("div");
   toolbar.className = "editor-toolbar";
-  const bulletButton = document.createElement("button");
-  bulletButton.type = "button";
-  bulletButton.textContent = "• Bullet list";
-  const textarea = field("textarea", value, "details-input", onChange);
+  const editor = document.createElement("div");
+  editor.className = "rich-editor";
+  editor.contentEditable = "true";
+  editor.setAttribute("role", "textbox");
+  editor.setAttribute("aria-multiline", "true");
+  editor.innerHTML = richTextHtml(value);
+  let savedRange = null;
 
-  bulletButton.addEventListener("click", () => {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const lineStart = textarea.value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
-    const nextBreak = textarea.value.indexOf("\n", end);
-    const lineEnd = nextBreak === -1 ? textarea.value.length : nextBreak;
-    const selectedLines = textarea.value.slice(lineStart, lineEnd).split("\n");
-    const removeBullets = selectedLines.every((line) => !line.trim() || line.startsWith("• "));
-    const formatted = selectedLines.map((line) => {
-      if (!line.trim()) return line;
-      return removeBullets ? line.replace(/^•\s?/, "") : `• ${line}`;
-    }).join("\n");
-    textarea.setRangeText(formatted, lineStart, lineEnd, "select");
-    textarea.dispatchEvent(new Event("input", { bubbles: true }));
-    textarea.focus();
-  });
+  const rememberSelection = () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount && editor.contains(selection.anchorNode)) savedRange = selection.getRangeAt(0).cloneRange();
+  };
+  const applyFormat = (command, commandValue = null) => {
+    editor.focus();
+    if (savedRange) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(savedRange);
+    }
+    document.execCommand(command, false, commandValue);
+    rememberSelection();
+    onChange(editor.innerHTML);
+  };
+  const toolButton = (label, command, commandValue = null, title = label) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.title = title;
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => applyFormat(command, commandValue));
+    return button;
+  };
 
-  toolbar.append(bulletButton);
-  wrapper.append(toolbar, textarea);
+  const colorPicker = document.createElement("input");
+  colorPicker.type = "color";
+  colorPicker.value = "#295743";
+  colorPicker.title = "Text color";
+  colorPicker.setAttribute("aria-label", "Text color");
+  colorPicker.addEventListener("input", () => applyFormat("foreColor", colorPicker.value));
+
+  toolbar.append(
+    toolButton("• List", "insertUnorderedList", null, "Bullet list"),
+    toolButton("U", "underline", null, "Underline"),
+    toolButton("Small", "fontSize", "2", "Small text"),
+    toolButton("Normal", "fontSize", "3", "Normal text"),
+    toolButton("Large", "fontSize", "5", "Large text"),
+    colorPicker,
+  );
+  editor.addEventListener("keyup", rememberSelection);
+  editor.addEventListener("mouseup", rememberSelection);
+  editor.addEventListener("input", () => onChange(editor.innerHTML));
+  wrapper.append(toolbar, editor);
   return wrapper;
+}
+
+function richTextHtml(value = "") {
+  const containsMarkup = /<(?:br|div|p|ul|ol|li|u|font)\b/i.test(value);
+  const template = document.createElement("template");
+  template.innerHTML = containsMarkup ? value : escapeHtml(value).replace(/\n/g, "<br>");
+  const allowedTags = new Set(["BR", "DIV", "P", "UL", "OL", "LI", "U", "FONT"]);
+  Array.from(template.content.querySelectorAll("*")).forEach((element) => {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(document.createTextNode(element.textContent || ""));
+      return;
+    }
+    Array.from(element.attributes).forEach((attribute) => {
+      const allowedFontAttribute = element.tagName === "FONT" && ["color", "size"].includes(attribute.name.toLowerCase());
+      if (!allowedFontAttribute) element.removeAttribute(attribute.name);
+    });
+  });
+  return template.innerHTML;
 }
 
 function embedUrl(url) {
@@ -288,7 +334,7 @@ function renderContent() {
           field("input", topic.videoUrl || "", "video-input", (value) => updateTopic(section.id, topic.id, "videoUrl", value), "YouTube or Google Drive video link"),
         );
       } else {
-        article.innerHTML = `<h2>${highlight(topic.title)}</h2>${topic.summary ? `<p class="summary">${highlight(topic.summary)}</p>` : ""}${topic.details ? `<p class="details">${highlight(topic.details)}</p>` : ""}`;
+        article.innerHTML = `<h2>${highlight(topic.title)}</h2>${topic.summary ? `<p class="summary">${highlight(topic.summary)}</p>` : ""}${topic.details ? `<div class="details">${richTextHtml(topic.details)}</div>` : ""}`;
         const video = embedUrl(topic.videoUrl);
         if (video) article.insertAdjacentHTML("beforeend", `<div class="video-block"><div class="video-label"><span class="play-dot">▶</span>${escapeHtml(topic.videoTitle || "Training video")}</div><div class="video-frame"><iframe src="${video}" title="${escapeHtml(topic.videoTitle || topic.title)}" allowfullscreen></iframe></div></div>`);
       }
