@@ -271,18 +271,29 @@ function openPhotoDialog(onInsert) {
   form.className = "photo-dialog";
   form.innerHTML = `
     <h3>Insert photo</h3>
-    <label>Image or Google Drive link<input name="photo-url" type="url" placeholder="https://" required></label>
+    <label>Choose photo from computer<input name="photo-file" type="file" accept="image/jpeg,image/png,image/webp"></label>
+    <div class="photo-or"><span>or</span></div>
+    <label>Image or Google Drive link<input name="photo-url" type="url" placeholder="https://"></label>
     <label>Photo description (optional)<input name="photo-alt" type="text"></label>
     <p class="photo-dialog-error" aria-live="polite"></p>
     <div class="photo-dialog-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Insert</button></div>
   `;
   const close = () => backdrop.remove();
   form.querySelector("[data-cancel]").addEventListener("click", close);
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const url = normalizePhotoUrl(new FormData(form).get("photo-url") || "");
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.textContent = "Preparing…";
+    const file = form.querySelector('[name="photo-file"]').files[0];
+    const enteredUrl = String(new FormData(form).get("photo-url") || "");
+    const url = file ? await compressLocalPhoto(file) : normalizePhotoUrl(enteredUrl);
     if (!url) {
-      form.querySelector(".photo-dialog-error").textContent = "Enter a valid HTTPS image or Google Drive link.";
+      form.querySelector(".photo-dialog-error").textContent = file
+        ? "This photo could not be prepared. Try a smaller JPG, PNG, or WebP image."
+        : "Choose a photo or enter a valid HTTPS image or Google Drive link.";
+      submitButton.disabled = false;
+      submitButton.textContent = "Insert";
       return;
     }
     onInsert(url, String(new FormData(form).get("photo-alt") || ""));
@@ -323,6 +334,7 @@ function richTextHtml(value = "") {
 }
 
 function normalizePhotoUrl(value) {
+  if (/^data:image\/(?:jpeg|png|webp);base64,/i.test(value) && value.length <= 320000) return value;
   try {
     const url = new URL(value.trim());
     if (url.protocol !== "https:") return "";
@@ -334,6 +346,38 @@ function normalizePhotoUrl(value) {
   } catch {
     return "";
   }
+}
+
+function compressLocalPhoto(file) {
+  if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) return Promise.resolve("");
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve("");
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => resolve("");
+      image.onload = () => {
+        const maxDimension = 1100;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        let quality = 0.8;
+        let result = canvas.toDataURL("image/jpeg", quality);
+        while (result.length > 300000 && quality > 0.4) {
+          quality -= 0.1;
+          result = canvas.toDataURL("image/jpeg", quality);
+        }
+        resolve(result.length <= 320000 ? result : "");
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function embedUrl(url) {
