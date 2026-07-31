@@ -3,3 +3,4 @@
 .tree-group h3 a{color:var(--ink);font-size:12px;text-decoration:none}.tree-group h3 a:hover,.tree-group h3 a:focus{color:var(--green);text-decoration:underline}
 #edit-button,#save-button{position:fixed;right:24px;bottom:24px;z-index:50;background:var(--green);color:#fff;box-shadow:0 12px 34px rgba(23,58,44,.25)}
 @media(max-width:620px){#edit-button,#save-button{right:16px;bottom:16px}}
+.details-editor{margin:6px 0}.details-editor .details-input{margin-top:0}.editor-toolbar{display:flex;gap:6px;padding:7px 8px;background:var(--soft);border:1px solid #b9c5bc;border-bottom:0}.editor-toolbar button{padding:6px 10px;border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer}.editor-toolbar button:hover,.editor-toolbar button:focus{border-color:var(--green);color:var(--green)}
