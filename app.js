@@ -238,18 +238,13 @@ function detailsEditor(value, onChange) {
   photoButton.title = "Insert photo";
   photoButton.addEventListener("mousedown", (event) => event.preventDefault());
   photoButton.addEventListener("click", () => {
-    const enteredUrl = window.prompt("Paste an image URL or Google Drive image-sharing link:");
-    if (!enteredUrl) return;
-    const photoUrl = normalizePhotoUrl(enteredUrl);
-    if (!photoUrl) {
-      window.alert("Please enter a valid HTTPS image or Google Drive link.");
-      return;
-    }
-    const image = document.createElement("img");
-    image.src = photoUrl;
-    image.alt = window.prompt("Photo description (optional):") || "";
-    image.loading = "lazy";
-    insertNode(image);
+    openPhotoDialog((photoUrl, description) => {
+      const image = document.createElement("img");
+      image.src = photoUrl;
+      image.alt = description;
+      image.loading = "lazy";
+      insertNode(image);
+    });
   });
 
   toolbar.append(
@@ -266,6 +261,37 @@ function detailsEditor(value, onChange) {
   editor.addEventListener("input", () => onChange(editor.innerHTML));
   wrapper.append(toolbar, editor);
   return wrapper;
+}
+
+function openPhotoDialog(onInsert) {
+  document.querySelector(".photo-dialog-backdrop")?.remove();
+  const backdrop = document.createElement("div");
+  backdrop.className = "photo-dialog-backdrop";
+  const form = document.createElement("form");
+  form.className = "photo-dialog";
+  form.innerHTML = `
+    <h3>Insert photo</h3>
+    <label>Image or Google Drive link<input name="photo-url" type="url" placeholder="https://" required></label>
+    <label>Photo description (optional)<input name="photo-alt" type="text"></label>
+    <p class="photo-dialog-error" aria-live="polite"></p>
+    <div class="photo-dialog-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Insert</button></div>
+  `;
+  const close = () => backdrop.remove();
+  form.querySelector("[data-cancel]").addEventListener("click", close);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const url = normalizePhotoUrl(new FormData(form).get("photo-url") || "");
+    if (!url) {
+      form.querySelector(".photo-dialog-error").textContent = "Enter a valid HTTPS image or Google Drive link.";
+      return;
+    }
+    onInsert(url, String(new FormData(form).get("photo-alt") || ""));
+    close();
+  });
+  backdrop.addEventListener("click", (event) => { if (event.target === backdrop) close(); });
+  backdrop.append(form);
+  document.body.append(backdrop);
+  form.querySelector('[name="photo-url"]').focus();
 }
 
 function richTextHtml(value = "") {
