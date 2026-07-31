@@ -61,18 +61,17 @@
           <button id="sign-out" class="text-button">Sign out</button>
         </div>
       </header>
-      <nav id="tabs" class="tabs" aria-label="Training chapters"></nav>
+      <div class="navigation-bar">
+        <nav id="tabs" class="tabs" aria-label="Training sections"></nav>
+        <label class="search-box" for="search-input">
+          <span aria-hidden="true">⌕</span>
+          <input id="search-input" type="search" placeholder="Search training" autocomplete="off" />
+        </label>
+      </div>
       <section id="content" aria-live="polite"></section>
       <footer><span>Front Desk Training Field Guide</span><span>Questions? Ask your manager or shift lead.</span></footer>
     </main>
 
-    <template id="topic-template">
-      <article class="topic-card">
-        <div class="topic-number"></div>
-        <div class="topic-content"></div>
-      </article>
-    </template>
-
-    <script type="module" src="./app.js?v=2"></script>
+    <script type="module" src="./app.js?v=3"></script>
   </body>
 </html>
