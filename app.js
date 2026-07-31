@@ -3,8 +3,6 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendP
 import { doc, getDoc, getFirestore, setDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig, ownerUid } from "./firebase-config.js?v=2";
 
-const CONTENT_VERSION = 5;
-
 const starterSections = [
   {
     id: "office",
@@ -120,7 +118,7 @@ async function handleAuth(user) {
   $("#edit-button").classList.toggle("hidden", user.uid !== ownerUid);
   const snapshot = await getDoc(doc(db, "training", "guide"));
   const saved = snapshot.exists() ? snapshot.data() : null;
-  sections = saved?.contentVersion === CONTENT_VERSION ? saved.sections : structuredClone(starterSections);
+  sections = saved?.sections || structuredClone(starterSections);
   render();
 }
 
@@ -142,7 +140,7 @@ $("#sign-out").addEventListener("click", () => signOut(auth));
 $("#search-input").addEventListener("input", (event) => { searchTerm = event.target.value.trim().toLowerCase(); renderContent(); });
 $("#edit-button").addEventListener("click", () => { editing = true; $("#edit-button").classList.add("hidden"); $("#save-button").classList.remove("hidden"); renderContent(); });
 $("#save-button").addEventListener("click", async () => {
-  await setDoc(doc(db, "training", "guide"), { sections, contentVersion: CONTENT_VERSION, updatedAt: new Date().toISOString() });
+  await setDoc(doc(db, "training", "guide"), { sections, updatedAt: new Date().toISOString() });
   editing = false;
   $("#save-button").classList.add("hidden");
   $("#edit-button").classList.remove("hidden");
