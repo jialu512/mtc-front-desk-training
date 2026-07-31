@@ -12,7 +12,7 @@ import {
   getFirestore,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
-import { firebaseConfig, ownerUid } from "./firebase-config.js";
+import { firebaseConfig, ownerUid } from "./firebase-config.js?v=2";
 
 const starterChapters = [
   {
