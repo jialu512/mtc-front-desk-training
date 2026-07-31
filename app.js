@@ -3,25 +3,36 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendP
 import { doc, getDoc, getFirestore, setDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig, ownerUid } from "./firebase-config.js?v=2";
 
+const CONTENT_VERSION = 2;
+
 const starterSections = [
   {
     id: "office",
     label: "Office",
     eyebrow: "Front desk essentials",
     title: "Office Training",
-    intro: "The practical standards and routines that keep every shift calm, consistent, and guest-ready.",
+    intro: "Use these shift checklists and reference notes to keep the office clean, prepared, and running smoothly.",
     groups: [
-      { title: "Getting started", topics: [
-        { id: "office-welcome", title: "Welcome & expectations", summary: "What excellent front-desk service looks like.", details: "Review our service standards, arrive ready for your shift, and use this guide as your reference when questions come up.", videoTitle: "", videoUrl: "" },
-        { id: "office-opening", title: "Opening the office", summary: "Prepare the space, systems, and schedule for the day.", details: "Complete the opening checklist in order. Check messages, review the schedule, prepare the reception area, and record anything unusual in the shift log.", videoTitle: "Opening routine", videoUrl: "" },
+      { title: "Shift 1", topics: [
+        { id: "s1-outside", title: "Outside", summary: "Prepare the porches, entrance, and Omomi area.", details: "☐ Blow the front and back porches all the way to the street, including the brown mats and rocks between the small planters.\n☐ Put the sandwich board and flyers out front; wipe them clean if dusty.\n☐ Water the back-porch plants every Monday, Wednesday, and Friday.\n☐ Turn on the Omomi TV, lights, and window lights.\n☐ If Omomi technicians are running late, unlock the front door for clients.", videoTitle: "", videoUrl: "" },
+        { id: "s1-passcodes", title: "Passcodes & keys", summary: "Know where to find the access information needed for opening.", details: "Confirm that you know the passcode or access procedure for:\n☐ Back door\n☐ Computer\n☐ Voicemail\n☐ Omomi phone\n☐ Omomi Square app\n☐ Location of the Omomi backup key", videoTitle: "", videoUrl: "" },
+        { id: "s1-bathrooms", title: "Bathrooms & hallway", summary: "Turn on shared-area equipment and check supplies.", details: "☐ Turn on the hallway lights.\n☐ Turn on the white-noise machines.\n☐ Stock bathrooms with towels, toilet paper, tissues, and air freshener.\n☐ Restock paper cups on top of the water cooler as needed.", videoTitle: "", videoUrl: "" },
+        { id: "s1-lunch-room", title: "Staff lunch room", summary: "Turn on the lights and verify both security monitors.", details: "☐ Turn on both lights.\n☐ Confirm that the lobby and back-door monitors are on.\n☐ If the lobby monitor is black, go to the reception area and unplug and reconnect the monitor above the large mirror.", videoTitle: "", videoUrl: "" },
+        { id: "s1-front-desk", title: "Front desk & lobby", summary: "Open, clean, and prepare all guest-facing areas.", details: "LIGHTS\n☐ Turn on the lobby and desk-area lights, the lights behind the shelf, and the small lobby table lamp.\n\nOPEN SIGN\n☐ Turn it on.\n\nLOBBY\n☐ Dust surfaces and use the rule of three: organize small items into three groups.\n☐ Check and restock the snack basket as needed.\n\nSHADES\n☐ Raise the shades so people can see that we are open.\n\nWINDOWS & DOORS\n☐ Clean fingerprints from the see-through window in the hallway door.\n☐ Wipe fingerprints from the entrance door.", videoTitle: "", videoUrl: "" },
+        { id: "s1-systems", title: "Systems, messages & cash", summary: "Log in, review communications, and prepare the cash box.", details: "☐ Log in to WellnessLiving.\n☐ Log in to Omomi Square on both the desktop and phone.\n☐ Check missed calls, voicemail, and text messages on the MTC phone and Omomi phone.\n☐ Turn on music.\n☐ Count the Shift 1 cash box and complete the daily cash worksheet.\n☐ Inform Jialu if the box is high on large bills or low on small bills.\n☐ Check sauna reservations, write cards, and set alarms if needed.\n\nONCE SETTLED IN\n☐ Recheck missed calls and voicemail.\n☐ Print the confirmation-call sheet.\n☐ Make confirmation calls.\n☐ Check notes for additional information; some clients do not want calls.", videoTitle: "", videoUrl: "" },
+        { id: "s1-massage-rooms", title: "Massage rooms", summary: "Check each room for supplies, cleanliness, and readiness.", details: "☐ Replace tissue boxes when necessary.\n☐ Place the black stool in the corner without touching the wall.\n☐ Make sure the wastebasket is clean.\n☐ Check that clocks show the correct time.", videoTitle: "", videoUrl: "" },
+        { id: "s1-during", title: "During the shift", summary: "Maintain the schedule, supplies, sauna, and hourly checks.", details: "☐ Print the next day's appointment list and make confirmation calls.\n☐ Restock masks, brochures, and tip envelopes as needed.\n☐ Check the day's sauna list and prepare cards as needed.\n☐ Turn on the sauna 30 minutes before arrival and turn it off immediately afterward.\n☐ Check bathrooms, voicemail, and email every hour.\n☐ Check bathroom cleanliness and toilet-paper stock.", videoTitle: "", videoUrl: "" },
+        { id: "s1-linen", title: "Linen deliveries — M/W/F", summary: "Verify deliveries and document discrepancies.", details: "☐ Verify the count of every delivered item and check it off if correct.\n☐ Note discrepancies on the invoice.\n☐ Initial the invoice and place it in Jialu's mailbox.", videoTitle: "", videoUrl: "" },
+        { id: "s1-end", title: "End of Shift 1", summary: "Balance the cash box, clean the desk, and leave a complete handoff.", details: "☐ Count the cash and enter the ending amount on the daily cash worksheet and the card in the box.\n☐ Clean and wipe down the front-desk area.\n☐ Log out of WellnessLiving and email at shift exchange.\n☐ Take out trash from the lobby, bathrooms, and kitchen.\n☐ Confirm that no clients under your watch left without paying.", videoTitle: "", videoUrl: "" },
       ]},
-      { title: "Guest care", topics: [
-        { id: "office-greeting", title: "Greeting every guest", summary: "Create a warm, confident first impression.", details: "Acknowledge each guest promptly. Make eye contact, smile, confirm how you can help, and set a clear expectation if you need a moment.", videoTitle: "Guest greeting example", videoUrl: "" },
-        { id: "office-phone", title: "Phone & messages", summary: "Answer, transfer, and document calls with care.", details: "Use the approved greeting, confirm names and numbers, repeat important details, and explain what will happen next before ending the call.", videoTitle: "", videoUrl: "" },
+      { title: "Shift 2", topics: [
+        { id: "s2-coming-soon", title: "Shift 2 checklist", summary: "Content ready to be added.", details: "Shift 2 procedures will appear here.", videoTitle: "", videoUrl: "" },
       ]},
-      { title: "Daily operations", topics: [
-        { id: "office-scheduling", title: "Scheduling appointments", summary: "Book accurately and communicate clearly.", details: "Verify the guest, service, practitioner, date, and time. Repeat the appointment details and explain any arrival or cancellation expectations.", videoTitle: "Scheduling walkthrough", videoUrl: "" },
-        { id: "office-closing", title: "Closing & handoff", summary: "Leave the next shift fully informed.", details: "Finish the closing checklist, secure sensitive materials, tidy the desk, and write a concise handoff covering open items and their owners.", videoTitle: "", videoUrl: "" },
+      { title: "General Notes", topics: [
+        { id: "general-notes", title: "General notes", summary: "Shared office information and reminders.", details: "General office notes will appear here.", videoTitle: "", videoUrl: "" },
+      ]},
+      { title: "Trouble Shooting", topics: [
+        { id: "trouble-shooting", title: "Trouble shooting", summary: "Quick solutions for common front-desk issues.", details: "Trouble-shooting instructions will appear here.", videoTitle: "", videoUrl: "" },
       ]},
     ],
   },
@@ -99,7 +110,7 @@ async function handleAuth(user) {
   $("#edit-button").classList.toggle("hidden", user.uid !== ownerUid);
   const snapshot = await getDoc(doc(db, "training", "guide"));
   const saved = snapshot.exists() ? snapshot.data() : null;
-  sections = saved?.sections || structuredClone(starterSections);
+  sections = saved?.contentVersion === CONTENT_VERSION ? saved.sections : structuredClone(starterSections);
   render();
 }
 
@@ -121,7 +132,7 @@ $("#sign-out").addEventListener("click", () => signOut(auth));
 $("#search-input").addEventListener("input", (event) => { searchTerm = event.target.value.trim().toLowerCase(); renderContent(); });
 $("#edit-button").addEventListener("click", () => { editing = true; $("#edit-button").classList.add("hidden"); $("#save-button").classList.remove("hidden"); renderContent(); });
 $("#save-button").addEventListener("click", async () => {
-  await setDoc(doc(db, "training", "guide"), { sections, updatedAt: new Date().toISOString() });
+  await setDoc(doc(db, "training", "guide"), { sections, contentVersion: CONTENT_VERSION, updatedAt: new Date().toISOString() });
   editing = false;
   $("#save-button").classList.add("hidden");
   $("#edit-button").classList.remove("hidden");
