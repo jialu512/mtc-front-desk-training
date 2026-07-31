@@ -3,7 +3,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendP
 import { doc, getDoc, getFirestore, setDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig, ownerUid } from "./firebase-config.js?v=2";
 
-const CONTENT_VERSION = 4;
+const CONTENT_VERSION = 5;
 
 const starterSections = [
   {
@@ -29,10 +29,20 @@ const starterSections = [
         { id: "s2-closing", title: "Closing of S2", summary: "", details: "☐ Did anyone under your watch leave without paying?\n☐ Restock massage cream, sanitizer when less than ½ full, and tissues.\n☐ Refill massage oil in the kitchen.\n☐ Reset the room using the rule of three (see picture below).\n\nTURN OFF / UNPLUG\n☐ Candle in massage room.\n☐ Massage-table heating pad (fire hazard).\n☐ White-noise machine.\n☐ All lights.\n☐ Sauna (fire hazard).\n☐ Space heater (fire hazard).\n☐ AC / heat.\n\nRESTOCK\n☐ Kitchen coffee, creamer, and cups.\n☐ Brochures, business cards, and tip envelopes.\n\n☐ Bring in the sandwich board and lock the front door.\n☐ Pull down the lobby shades.\n☐ Count the S2 ending cash, fill out the worksheet, lock the box and drawer, put the key away, and file the worksheet.\n☐ Tidy and wipe down the front desk and surrounding areas.\n☐ Sign out and close WellnessLiving and email.\n☐ Take out trash from the lobby, office, massage rooms, kitchen, and bathrooms.\n\nTRASH\n☐ Try to consolidate trash by pouring it into the kitchen bag instead of taking out every bag. Only replace smaller bags if needed.\n\n☐ Optional: Update the Room 5 left-hand closet with supplies from the right-hand side.\n☐ Text Jialu if we are running low on supplies. Update the shift-checklist comments so we do not spam her.\n☐ Turn off the Omomi TV.\n☐ Turn off Omomi lights if their staff have already left and forgot.\n☐ Exit through the back door and double-check that it is locked.\n\nTIP\nIt is generally slower toward the end, so stagger closing procedures to reduce a rushed process. Do your best to restock as much as you can to help S1.", videoTitle: "", videoUrl: "" },
       ]},
       { title: "General Notes", topics: [
-        { id: "general-notes", title: "General Notes", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "general-confirmation-calls", title: "Confirmation calls", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "general-late-cancel", title: "What to do w. Late cancel/No show", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "general-music", title: "Music not working", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "general-security-camera", title: "Security camera", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "general-el-camino", title: "El Camino Hospital / Cancer center", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "general-where-to-find", title: "Where to find ... ?", summary: "", details: "", videoTitle: "", videoUrl: "" },
       ]},
-      { title: "Trouble Shooting", topics: [
-        { id: "trouble-shooting", title: "Trouble Shooting", summary: "", details: "", videoTitle: "", videoUrl: "" },
+      { title: "Useful Links", topics: [
+        { id: "link-front-desk-schedule", title: "Front desk schedule", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "link-room-assignment", title: "Therapists room assignment", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "link-therapist-background", title: "Therapists background", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "link-mtc-schedule", title: "MTC schedule", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "link-staff-ooo", title: "Staff OOO", summary: "", details: "", videoTitle: "", videoUrl: "" },
+        { id: "link-omomi-background", title: "OMOMI technician background", summary: "", details: "", videoTitle: "", videoUrl: "" },
       ]},
     ],
   },
