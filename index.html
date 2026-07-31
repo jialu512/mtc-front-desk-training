@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Private front desk staff training." />
+    <title>Front Desk Training Field Guide</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <section id="loading" class="center-screen">
+      <div class="loader"></div>
+      <p>Opening your training guide…</p>
+    </section>
+
+    <section id="setup-needed" class="center-screen hidden">
+      <div class="auth-card">
+        <div class="brand-mark">F</div>
+        <p class="eyebrow">One-time setup</p>
+        <h1>Connect Firebase to continue</h1>
+        <p>This copy of the site still needs its Firebase project details.</p>
+      </div>
+    </section>
+
+    <section id="login-view" class="login-layout hidden">
+      <div class="login-story">
+        <a class="brand light" href="#">
+          <span class="brand-mark pale">F</span>
+          <span><strong>Front Desk</strong><small>Training field guide</small></span>
+        </a>
+        <div>
+          <p class="eyebrow pale-text">Team learning</p>
+          <h1>Everything you need for a confident shift.</h1>
+          <p class="login-intro">Clear guides, practical examples, and training videos—all in one private place.</p>
+        </div>
+        <small>For authorized staff only</small>
+      </div>
+      <form id="login-form" class="auth-card">
+        <p class="eyebrow">Welcome back</p>
+        <h2>Sign in to continue</h2>
+        <p class="muted">Use the email and password provided by your manager.</p>
+        <label>Email address<input id="email" type="email" autocomplete="username" required /></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" required /></label>
+        <p id="login-error" class="error" aria-live="polite"></p>
+        <button class="primary-button" type="submit">Sign in</button>
+        <button id="forgot-password" class="text-button" type="button">Forgot password?</button>
+      </form>
+    </section>
+
+    <main id="site-view" class="hidden">
+      <header class="site-header">
+        <a class="brand" href="#top">
+          <span class="brand-mark">F</span>
+          <span><strong>Front Desk</strong><small>Training field guide</small></span>
+        </a>
+        <div class="header-actions">
+          <span id="user-email" class="user-email"></span>
+          <button id="edit-button" class="outline-button hidden">Edit this guide</button>
+          <button id="save-button" class="primary-button compact hidden">Save changes</button>
+          <button id="sign-out" class="text-button">Sign out</button>
+        </div>
+      </header>
+      <nav id="tabs" class="tabs" aria-label="Training chapters"></nav>
+      <section id="content" aria-live="polite"></section>
+      <footer><span>Front Desk Training Field Guide</span><span>Questions? Ask your manager or shift lead.</span></footer>
+    </main>
+
+    <template id="topic-template">
+      <article class="topic-card">
+        <div class="topic-number"></div>
+        <div class="topic-content"></div>
+      </article>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
