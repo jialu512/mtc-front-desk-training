@@ -3,7 +3,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendP
 import { doc, getDoc, getFirestore, setDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig, ownerUid } from "./firebase-config.js?v=2";
 
-const CONTENT_VERSION = 3;
+const CONTENT_VERSION = 4;
 
 const starterSections = [
   {
@@ -222,11 +222,13 @@ function renderContent() {
 
     const treeGroup = document.createElement("div");
     treeGroup.className = "tree-group";
-    treeGroup.innerHTML = `<h3>${escapeHtml(group.title)}</h3>`;
+    const groupTarget = `group-${group.topics[0].id}`;
+    treeGroup.innerHTML = `<h3><a href="#${groupTarget}">${escapeHtml(group.title)}</a></h3>`;
     const list = document.createElement("ul");
 
     const contentGroup = document.createElement("section");
     contentGroup.className = "content-group";
+    contentGroup.id = groupTarget;
     contentGroup.innerHTML = `<p class="group-kicker">${escapeHtml(group.title)}</p>`;
 
     matchingTopics.forEach((topic) => {
