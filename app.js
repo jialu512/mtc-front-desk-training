@@ -195,6 +195,26 @@ function detailsEditor(value, onChange) {
     rememberSelection();
     onChange(editor.innerHTML);
   };
+  const insertNode = (node) => {
+    editor.focus();
+    const selection = window.getSelection();
+    let range = savedRange;
+    if (!range || !editor.contains(range.commonAncestorContainer)) {
+      range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+    }
+    range.deleteContents();
+    range.insertNode(node);
+    const spacer = document.createElement("br");
+    node.after(spacer);
+    range.setStartAfter(spacer);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRange = range.cloneRange();
+    onChange(editor.innerHTML);
+  };
   const toolButton = (label, command, commandValue = null, title = label) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -229,7 +249,7 @@ function detailsEditor(value, onChange) {
     image.src = photoUrl;
     image.alt = window.prompt("Photo description (optional):") || "";
     image.loading = "lazy";
-    applyFormat("insertHTML", image.outerHTML);
+    insertNode(image);
   });
 
   toolbar.append(
