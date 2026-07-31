@@ -167,6 +167,38 @@ function field(tag, value, className, onChange, placeholder = "") {
   return element;
 }
 
+function detailsEditor(value, onChange) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "details-editor";
+  const toolbar = document.createElement("div");
+  toolbar.className = "editor-toolbar";
+  const bulletButton = document.createElement("button");
+  bulletButton.type = "button";
+  bulletButton.textContent = "• Bullet list";
+  const textarea = field("textarea", value, "details-input", onChange);
+
+  bulletButton.addEventListener("click", () => {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const lineStart = textarea.value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    const nextBreak = textarea.value.indexOf("\n", end);
+    const lineEnd = nextBreak === -1 ? textarea.value.length : nextBreak;
+    const selectedLines = textarea.value.slice(lineStart, lineEnd).split("\n");
+    const removeBullets = selectedLines.every((line) => !line.trim() || line.startsWith("• "));
+    const formatted = selectedLines.map((line) => {
+      if (!line.trim()) return line;
+      return removeBullets ? line.replace(/^•\s?/, "") : `• ${line}`;
+    }).join("\n");
+    textarea.setRangeText(formatted, lineStart, lineEnd, "select");
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    textarea.focus();
+  });
+
+  toolbar.append(bulletButton);
+  wrapper.append(toolbar, textarea);
+  return wrapper;
+}
+
 function embedUrl(url) {
   if (!url) return "";
   try {
@@ -251,7 +283,7 @@ function renderContent() {
         article.append(
           field("input", topic.title, "topic-title-input", (value) => updateTopic(section.id, topic.id, "title", value)),
           field("input", topic.summary, "summary-input", (value) => updateTopic(section.id, topic.id, "summary", value)),
-          field("textarea", topic.details, "details-input", (value) => updateTopic(section.id, topic.id, "details", value)),
+          detailsEditor(topic.details, (value) => updateTopic(section.id, topic.id, "details", value)),
           field("input", topic.videoTitle || "", "video-input", (value) => updateTopic(section.id, topic.id, "videoTitle", value), "Video title (optional)"),
           field("input", topic.videoUrl || "", "video-input", (value) => updateTopic(section.id, topic.id, "videoUrl", value), "YouTube or Google Drive video link"),
         );
