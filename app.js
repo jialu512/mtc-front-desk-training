@@ -249,6 +249,8 @@ function detailsEditor(value, onChange) {
 
   toolbar.append(
     toolButton("• List", "insertUnorderedList", null, "Bullet list"),
+    toolButton("→ Indent", "indent", null, "Increase indentation"),
+    toolButton("← Outdent", "outdent", null, "Decrease indentation"),
     toolButton("U", "underline", null, "Underline"),
     toolButton("Small", "fontSize", "2", "Small text"),
     toolButton("Normal", "fontSize", "3", "Normal text"),
