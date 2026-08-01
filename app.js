@@ -172,6 +172,13 @@ function updateSection(id, key, value) {
   sections = sections.map((section) => section.id === id ? { ...section, [key]: value } : section);
 }
 
+function updateGroup(sectionId, groupIndex, value) {
+  sections = sections.map((section) => section.id !== sectionId ? section : {
+    ...section,
+    groups: section.groups.map((group, index) => index === groupIndex ? { ...group, title: value } : group),
+  });
+}
+
 function updateTopic(sectionId, topicId, key, value) {
   sections = sections.map((section) => section.id !== sectionId ? section : {
     ...section,
@@ -482,7 +489,23 @@ function renderContent() {
     const treeGroup = document.createElement("div");
     treeGroup.className = "tree-group";
     const groupTarget = `group-${group.topics[0].id}`;
-    treeGroup.innerHTML = `<h3><a href="#${groupTarget}">${escapeHtml(group.title)}</a></h3>`;
+    const groupHeading = document.createElement("h3");
+    if (editing) {
+      groupHeading.className = "group-menu-editor";
+      const groupName = field("input", group.title, "group-name-input", (value) => updateGroup(section.id, groupIndex, value), "Menu name");
+      groupName.setAttribute("aria-label", `Edit ${group.title} menu name`);
+      const addSubitem = document.createElement("button");
+      addSubitem.type = "button";
+      addSubitem.className = "add-subitem-button";
+      addSubitem.textContent = "+";
+      addSubitem.title = `Add item to ${group.title}`;
+      addSubitem.setAttribute("aria-label", `Add item to ${group.title}`);
+      addSubitem.addEventListener("click", () => addTopic(section.id, groupIndex));
+      groupHeading.append(groupName, addSubitem);
+    } else {
+      groupHeading.innerHTML = `<a href="#${groupTarget}">${escapeHtml(group.title)}</a>`;
+    }
+    treeGroup.append(groupHeading);
     const list = document.createElement("ul");
 
     const contentGroup = document.createElement("section");
@@ -513,14 +536,6 @@ function renderContent() {
       }
       contentGroup.append(article);
     });
-    if (editing) {
-      const addButton = document.createElement("button");
-      addButton.type = "button";
-      addButton.className = "add-topic-button";
-      addButton.textContent = `+ Add item to ${group.title}`;
-      addButton.addEventListener("click", () => addTopic(section.id, groupIndex));
-      contentGroup.append(addButton);
-    }
     treeGroup.append(list);
     tree.append(treeGroup);
     main.append(contentGroup);
