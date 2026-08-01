@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
-import { doc, getDoc, getFirestore, setDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
+import { createUserWithEmailAndPassword, deleteUser, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
+import { collection, deleteDoc, doc, getDoc, getDocs, getFirestore, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig, ownerUid } from "./firebase-config.js?v=2";
 
 const s2ClosingTopics = [
@@ -106,6 +106,8 @@ let currentUser = null;
 let searchTerm = "";
 let db;
 let auth;
+let signupInProgress = false;
+let accessUnsubscribe = null;
 
 const configured = !Object.values(firebaseConfig).some((value) => value.startsWith("PASTE_")) && ownerUid !== "PASTE_OWNER_UID";
 if (!configured) {
@@ -119,17 +121,36 @@ if (!configured) {
 }
 
 async function handleAuth(user) {
+  if (signupInProgress) return;
+  accessUnsubscribe?.();
+  accessUnsubscribe = null;
   loading.classList.add("hidden");
   currentUser = user;
   if (!user) {
     siteView.classList.add("hidden");
+    $("#access-denied").classList.add("hidden");
     loginView.classList.remove("hidden");
     return;
   }
+  if (!(await userHasAccess(user))) {
+    siteView.classList.add("hidden");
+    loginView.classList.add("hidden");
+    $("#access-denied-email").textContent = user.email || "this account";
+    $("#access-denied").classList.remove("hidden");
+    return;
+  }
+  $("#access-denied").classList.add("hidden");
   loginView.classList.add("hidden");
   siteView.classList.remove("hidden");
   $("#user-email").textContent = user.email || "";
   $("#edit-button").classList.toggle("hidden", user.uid !== ownerUid);
+  $("#manage-staff").classList.toggle("hidden", user.uid !== ownerUid);
+  if (user.uid !== ownerUid) {
+    const inviteRef = doc(db, "invites", normalizedEmail(user.email));
+    accessUnsubscribe = onSnapshot(inviteRef, (snapshot) => {
+      if (!snapshot.exists() || snapshot.data().active === false) signOut(auth);
+    });
+  }
   const snapshot = await getDoc(doc(db, "training", "guide"));
   const saved = snapshot.exists() ? snapshot.data() : null;
   const loadedSections = saved?.sections || structuredClone(starterSections);
@@ -149,6 +170,22 @@ async function handleAuth(user) {
     await setDoc(doc(db, "training", "guide"), { sections, structureVersion: guideStructureVersion, updatedAt: new Date().toISOString() });
   }
   render();
+}
+
+function normalizedEmail(value = "") {
+  return value.trim().toLowerCase();
+}
+
+async function userHasAccess(user) {
+  if (user.uid === ownerUid) return true;
+  const email = normalizedEmail(user.email);
+  if (!email) return false;
+  try {
+    const invitation = await getDoc(doc(db, "invites", email));
+    return invitation.exists() && invitation.data().active !== false;
+  } catch {
+    return false;
+  }
 }
 
 function splitS2ClosingProcedure(sourceSections) {
@@ -250,6 +287,51 @@ $("#login-form").addEventListener("submit", async (event) => {
   catch { $("#login-error").textContent = "That email or password is not correct."; }
 });
 
+$("#show-signup").addEventListener("click", () => showAuthForm("signup"));
+$("#show-login").addEventListener("click", () => showAuthForm("login"));
+
+function showAuthForm(mode) {
+  const signingUp = mode === "signup";
+  $("#login-form").classList.toggle("hidden", signingUp);
+  $("#signup-form").classList.toggle("hidden", !signingUp);
+  $("#login-error").textContent = "";
+  $("#signup-error").textContent = "";
+  const url = new URL(window.location.href);
+  if (signingUp) url.searchParams.set("signup", "1");
+  else url.searchParams.delete("signup");
+  history.replaceState(null, "", url);
+}
+
+$("#signup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const email = normalizedEmail($("#signup-email").value);
+  const password = $("#signup-password").value;
+  const confirmation = $("#signup-password-confirmation").value;
+  const error = $("#signup-error");
+  error.textContent = "";
+  if (password !== confirmation) {
+    error.textContent = "The passwords do not match.";
+    return;
+  }
+  signupInProgress = true;
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    if (!(await userHasAccess(credential.user))) {
+      await deleteUser(credential.user);
+      error.textContent = "This email address does not have an active invitation. Ask your manager for an invitation.";
+      return;
+    }
+    signupInProgress = false;
+    await handleAuth(credential.user);
+  } catch (failure) {
+    if (failure?.code === "auth/email-already-in-use") error.textContent = "An account already exists for this email. Sign in or reset your password.";
+    else if (failure?.code === "auth/weak-password") error.textContent = "Choose a password with at least 6 characters.";
+    else error.textContent = error.textContent || "We could not create the account. Please try again.";
+  } finally {
+    signupInProgress = false;
+  }
+});
+
 $("#forgot-password").addEventListener("click", async () => {
   const email = $("#email").value.trim();
   if (!email) { $("#login-error").textContent = "Enter your email address first."; return; }
@@ -258,6 +340,74 @@ $("#forgot-password").addEventListener("click", async () => {
 });
 
 $("#sign-out").addEventListener("click", () => signOut(auth));
+$("#access-denied-sign-out").addEventListener("click", () => signOut(auth));
+$("#manage-staff").addEventListener("click", openStaffManager);
+$("#close-staff-manager").addEventListener("click", () => $("#staff-manager").classList.add("hidden"));
+$("#invite-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const email = normalizedEmail($("#invite-email").value);
+  const message = $("#invite-message");
+  message.textContent = "";
+  if (!email) return;
+  try {
+    await setDoc(doc(db, "invites", email), { email, active: true, invitedAt: new Date().toISOString(), invitedBy: currentUser.uid });
+    $("#invite-email").value = "";
+    message.textContent = `${email} can now create an account.`;
+    await renderStaffInvitations();
+  } catch {
+    message.textContent = "The invitation could not be saved.";
+  }
+});
+$("#copy-signup-link").addEventListener("click", async () => {
+  const url = new URL(window.location.href);
+  url.hash = "";
+  url.search = "?signup=1";
+  try {
+    await navigator.clipboard.writeText(url.href);
+    $("#invite-message").textContent = "Signup link copied. Send it to the invited staff member.";
+  } catch {
+    $("#invite-message").textContent = `Signup link: ${url.href}`;
+  }
+});
+
+async function openStaffManager() {
+  $("#staff-manager").classList.remove("hidden");
+  await renderStaffInvitations();
+}
+
+async function renderStaffInvitations() {
+  const list = $("#staff-list");
+  list.innerHTML = `<li class="muted">Loading staff access…</li>`;
+  try {
+    const snapshot = await getDocs(collection(db, "invites"));
+    const invitations = snapshot.docs.map((entry) => entry.data()).sort((a, b) => a.email.localeCompare(b.email));
+    list.replaceChildren();
+    if (!invitations.length) {
+      list.innerHTML = `<li class="muted">No staff invitations yet.</li>`;
+      return;
+    }
+    invitations.forEach((invitation) => {
+      const item = document.createElement("li");
+      const email = document.createElement("span");
+      email.textContent = invitation.email;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "remove-access-button";
+      remove.textContent = "Remove access";
+      remove.addEventListener("click", async () => {
+        if (!confirm(`Remove training access for ${invitation.email}?`)) return;
+        await deleteDoc(doc(db, "invites", invitation.email));
+        await renderStaffInvitations();
+      });
+      item.append(email, remove);
+      list.append(item);
+    });
+  } catch {
+    list.innerHTML = `<li class="error">Staff access could not be loaded.</li>`;
+  }
+}
+
+if (new URLSearchParams(window.location.search).get("signup") === "1") showAuthForm("signup");
 $("#search-input").addEventListener("input", (event) => { searchTerm = event.target.value.trim().toLowerCase(); renderContent(); });
 $("#edit-button").addEventListener("click", () => {
   const visibleTopics = [...document.querySelectorAll(".topic-section")].filter((topic) => {
