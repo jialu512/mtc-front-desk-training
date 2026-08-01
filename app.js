@@ -11,7 +11,22 @@ const s2ClosingTopics = [
   { id: "s2-omomi", title: "OMOMI", summary: "", details: "☐ Turn off the Omomi TV.\n☐ Turn off Omomi lights if their staff have already left and forgot.", videoTitle: "", videoUrl: "" },
   { id: "s2-exit", title: "EXIT", summary: "", details: "☐ Bring in the sandwich board and lock the front door.\n☐ Pull down the lobby shades.\n☐ Exit through the back door and double-check that it is locked.", videoTitle: "", videoUrl: "" },
 ];
-const guideStructureVersion = 1;
+const wellnessTopics = [
+  { id: "wellness-appointments", title: "Make / change appointments", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-credit-cards", title: "Add credit cards", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-checkout", title: "Checkout", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-checkout-credit-card", parentId: "wellness-checkout", title: "With credit card", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-checkout-account-balance", parentId: "wellness-checkout", title: "With account balance", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-checkout-gc", parentId: "wellness-checkout", title: "With GC", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-checkout-cash", parentId: "wellness-checkout", title: "With cash", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-checkout-zelle-venmo", parentId: "wellness-checkout", title: "With zelle/venmo", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-gift-cards", title: "Sell Gift cards", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-gift-card-existing", parentId: "wellness-gift-cards", title: "Sell GC to existing clients", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-gift-card-walkin", parentId: "wellness-gift-cards", title: "Sell GC to walkin's", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-gift-card-find", parentId: "wellness-gift-cards", title: "Find an existing GC", summary: "", details: "", videoTitle: "", videoUrl: "" },
+  { id: "wellness-package", title: "Package", summary: "", details: "", videoTitle: "", videoUrl: "" },
+];
+const guideStructureVersion = 2;
 
 const starterSections = [
   {
@@ -59,20 +74,9 @@ const starterSections = [
     label: "Wellness",
     eyebrow: "Guest knowledge",
     title: "Wellness Training",
-    intro: "Build the knowledge and language to guide guests thoughtfully while staying within the front-desk role.",
+    intro: "",
     groups: [
-      { title: "Foundations", topics: [
-        { id: "wellness-services", title: "Know our services", summary: "Describe each offering simply and accurately.", details: "Learn the purpose, typical experience, and basic differences between services. When a clinical recommendation is needed, connect the guest with the appropriate practitioner.", videoTitle: "Service overview", videoUrl: "" },
-        { id: "wellness-boundaries", title: "Role boundaries", summary: "Be helpful without offering medical advice.", details: "Share approved factual information, ask clarifying questions, and escalate health or treatment questions to a qualified practitioner.", videoTitle: "", videoUrl: "" },
-      ]},
-      { title: "Guest conversations", topics: [
-        { id: "wellness-needs", title: "Understanding guest needs", summary: "Listen first, then help identify the next step.", details: "Ask open, neutral questions about what the guest is looking for. Avoid diagnosing or promising outcomes, and document relevant preferences clearly.", videoTitle: "A helpful wellness conversation", videoUrl: "" },
-        { id: "wellness-sensitive", title: "Sensitive conversations", summary: "Respond with privacy, empathy, and good judgment.", details: "Keep your voice low, move the conversation away from other guests when possible, and involve a manager or practitioner when the situation goes beyond your role.", videoTitle: "", videoUrl: "" },
-      ]},
-      { title: "Safety & support", topics: [
-        { id: "wellness-privacy", title: "Privacy & confidentiality", summary: "Protect guest information everywhere.", details: "Never confirm a guest’s presence or share personal information without following the approved identity-verification process.", videoTitle: "", videoUrl: "" },
-        { id: "wellness-escalation", title: "When to escalate", summary: "Know when—and who—to ask for help.", details: "Escalate emergencies, health concerns, unusual reactions, privacy issues, and any situation where you are uncertain about the correct response.", videoTitle: "Escalation basics", videoUrl: "" },
-      ]},
+      { title: "Wellness", topics: structuredClone(wellnessTopics) },
     ],
   },
   {
@@ -130,11 +134,15 @@ async function handleAuth(user) {
   const saved = snapshot.exists() ? snapshot.data() : null;
   const loadedSections = saved?.sections || structuredClone(starterSections);
   const closingMigration = splitS2ClosingProcedure(loadedSections);
-  const treeMigration = (saved?.structureVersion || 0) < guideStructureVersion
+  const previousStructureVersion = saved?.structureVersion || 0;
+  const treeMigration = previousStructureVersion < 1
     ? applyChecklistTree(closingMigration.sections)
     : { sections: closingMigration.sections, changed: false };
-  sections = treeMigration.sections;
-  if ((closingMigration.changed || treeMigration.changed) && user.uid === ownerUid) {
+  const wellnessMigration = previousStructureVersion < 2
+    ? applyWellnessMenu(treeMigration.sections)
+    : { sections: treeMigration.sections, changed: false };
+  sections = wellnessMigration.sections;
+  if ((closingMigration.changed || treeMigration.changed || wellnessMigration.changed) && user.uid === ownerUid) {
     await setDoc(doc(db, "training", "guide"), { sections, structureVersion: guideStructureVersion, updatedAt: new Date().toISOString() });
   }
   render();
@@ -189,6 +197,15 @@ function applyChecklistTree(sourceSections) {
     shift2.topics = [...requestedTopics, ...additionalTopics];
   }
 
+  return { sections: migrated, changed: true };
+}
+
+function applyWellnessMenu(sourceSections) {
+  const migrated = structuredClone(sourceSections);
+  const wellness = migrated.find((section) => section.id === "wellness");
+  if (!wellness) return { sections: migrated, changed: false };
+  wellness.intro = "";
+  wellness.groups = [{ title: "Wellness", topics: structuredClone(wellnessTopics) }];
   return { sections: migrated, changed: true };
 }
 
