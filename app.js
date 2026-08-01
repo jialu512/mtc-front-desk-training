@@ -3,6 +3,15 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, sendP
 import { doc, getDoc, getFirestore, setDoc } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
 import { firebaseConfig, ownerUid } from "./firebase-config.js?v=2";
 
+const s2ClosingTopics = [
+  { id: "s2-wellness", title: "WELLNESS", summary: "", details: "☐ Did anyone under your watch leave without paying?\n☐ Count the S2 ending cash, fill out the worksheet, lock the box and drawer, put the key away, and file the worksheet.\n☐ Sign out and close WellnessLiving and email.", videoTitle: "", videoUrl: "" },
+  { id: "s2-turn-off", title: "TURN OFF / UNPLUG", summary: "", details: "☐ Candle in massage room.\n☐ Massage-table heating pad (fire hazard).\n☐ White-noise machine.\n☐ All lights.\n☐ Sauna (fire hazard).\n☐ Space heater (fire hazard).\n☐ AC / heat.", videoTitle: "", videoUrl: "" },
+  { id: "s2-restock-reset", title: "RESTOCK/RESET", summary: "", details: "☐ Restock massage cream, sanitizer when less than ½ full, and tissues.\n☐ Refill massage oil in the kitchen.\n☐ Reset the room using the rule of three (see picture below).\n☐ Restock kitchen coffee, creamer, and cups.\n☐ Restock brochures, business cards, and tip envelopes.\n☐ Tidy and wipe down the front desk and surrounding areas.\n☐ Optional: Update the Room 5 left-hand closet with supplies from the right-hand side.\n☐ Text Jialu if we are running low on supplies. Update the shift-checklist comments so we do not spam her.\n\nTIP\nIt is generally slower toward the end, so stagger closing procedures to reduce a rushed process. Do your best to restock as much as you can to help S1.", videoTitle: "", videoUrl: "" },
+  { id: "s2-trash", title: "TRASH", summary: "", details: "☐ Take out trash from the lobby, office, massage rooms, kitchen, and bathrooms.\n☐ Try to consolidate trash by pouring it into the kitchen bag instead of taking out every bag. Only replace smaller bags if needed.", videoTitle: "", videoUrl: "" },
+  { id: "s2-omomi", title: "OMOMI", summary: "", details: "☐ Turn off the Omomi TV.\n☐ Turn off Omomi lights if their staff have already left and forgot.", videoTitle: "", videoUrl: "" },
+  { id: "s2-exit", title: "EXIT", summary: "", details: "☐ Bring in the sandwich board and lock the front door.\n☐ Pull down the lobby shades.\n☐ Exit through the back door and double-check that it is locked.", videoTitle: "", videoUrl: "" },
+];
+
 const starterSections = [
   {
     id: "office",
@@ -24,7 +33,7 @@ const starterSections = [
       ]},
       { title: "Shift 2", topics: [
         { id: "s2-beginning", title: "Beginning/During S2", summary: "", details: "☐ Check in with S1 on unfinished tasks.\n☐ Did anyone under S1's watch leave without paying?\n☐ Count the S2 cash box and fill out the daily cash worksheet.\n☐ Check bathrooms and restock as needed.\n☐ Check voicemail right away and often throughout the shift.\n☐ Make sure music is playing.\n☐ Make sure the kitchen monitor screen is on.\n☐ Wipe down the desk, counter, and lobby surfaces often.\n☐ Make sure the see-through window on the hallway door is clean and free of fingerprints.\n☐ In WellnessLiving, make sure all check-in lines are green and transactions are green, except for cash payments.\n☐ Fold and restock linen.", videoTitle: "", videoUrl: "" },
-        { id: "s2-closing", title: "Closing of S2", summary: "", details: "☐ Did anyone under your watch leave without paying?\n☐ Restock massage cream, sanitizer when less than ½ full, and tissues.\n☐ Refill massage oil in the kitchen.\n☐ Reset the room using the rule of three (see picture below).\n\nTURN OFF / UNPLUG\n☐ Candle in massage room.\n☐ Massage-table heating pad (fire hazard).\n☐ White-noise machine.\n☐ All lights.\n☐ Sauna (fire hazard).\n☐ Space heater (fire hazard).\n☐ AC / heat.\n\nRESTOCK\n☐ Kitchen coffee, creamer, and cups.\n☐ Brochures, business cards, and tip envelopes.\n\n☐ Bring in the sandwich board and lock the front door.\n☐ Pull down the lobby shades.\n☐ Count the S2 ending cash, fill out the worksheet, lock the box and drawer, put the key away, and file the worksheet.\n☐ Tidy and wipe down the front desk and surrounding areas.\n☐ Sign out and close WellnessLiving and email.\n☐ Take out trash from the lobby, office, massage rooms, kitchen, and bathrooms.\n\nTRASH\n☐ Try to consolidate trash by pouring it into the kitchen bag instead of taking out every bag. Only replace smaller bags if needed.\n\n☐ Optional: Update the Room 5 left-hand closet with supplies from the right-hand side.\n☐ Text Jialu if we are running low on supplies. Update the shift-checklist comments so we do not spam her.\n☐ Turn off the Omomi TV.\n☐ Turn off Omomi lights if their staff have already left and forgot.\n☐ Exit through the back door and double-check that it is locked.\n\nTIP\nIt is generally slower toward the end, so stagger closing procedures to reduce a rushed process. Do your best to restock as much as you can to help S1.", videoTitle: "", videoUrl: "" },
+        ...structuredClone(s2ClosingTopics),
       ]},
       { title: "General Notes", topics: [
         { id: "general-confirmation-calls", title: "Confirmation calls", summary: "", details: "", videoTitle: "", videoUrl: "" },
@@ -118,8 +127,26 @@ async function handleAuth(user) {
   $("#edit-button").classList.toggle("hidden", user.uid !== ownerUid);
   const snapshot = await getDoc(doc(db, "training", "guide"));
   const saved = snapshot.exists() ? snapshot.data() : null;
-  sections = saved?.sections || structuredClone(starterSections);
+  const loadedSections = saved?.sections || structuredClone(starterSections);
+  const migration = splitS2ClosingProcedure(loadedSections);
+  sections = migration.sections;
+  if (migration.changed && user.uid === ownerUid) {
+    await setDoc(doc(db, "training", "guide"), { sections, updatedAt: new Date().toISOString() });
+  }
   render();
+}
+
+function splitS2ClosingProcedure(sourceSections) {
+  let changed = false;
+  const migrated = structuredClone(sourceSections);
+  const office = migrated.find((section) => section.id === "office");
+  const shift2 = office?.groups.find((group) => group.topics.some((topic) => topic.id === "s2-closing"));
+  if (shift2 && !shift2.topics.some((topic) => topic.id === "s2-wellness")) {
+    const closingIndex = shift2.topics.findIndex((topic) => topic.id === "s2-closing");
+    shift2.topics.splice(closingIndex, 1, ...structuredClone(s2ClosingTopics));
+    changed = true;
+  }
+  return { sections: migrated, changed };
 }
 
 $("#login-form").addEventListener("submit", async (event) => {
