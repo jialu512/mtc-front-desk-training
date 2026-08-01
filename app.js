@@ -138,7 +138,28 @@ $("#forgot-password").addEventListener("click", async () => {
 
 $("#sign-out").addEventListener("click", () => signOut(auth));
 $("#search-input").addEventListener("input", (event) => { searchTerm = event.target.value.trim().toLowerCase(); renderContent(); });
-$("#edit-button").addEventListener("click", () => { editing = true; $("#edit-button").classList.add("hidden"); $("#save-button").classList.remove("hidden"); renderContent(); });
+$("#edit-button").addEventListener("click", () => {
+  const visibleTopics = [...document.querySelectorAll(".topic-section")].filter((topic) => {
+    const rect = topic.getBoundingClientRect();
+    return rect.bottom > 90 && rect.top < window.innerHeight;
+  });
+  const anchor = visibleTopics.reduce((closest, topic) => {
+    if (!closest) return topic;
+    return Math.abs(topic.getBoundingClientRect().top - 170) < Math.abs(closest.getBoundingClientRect().top - 170) ? topic : closest;
+  }, null);
+  const anchorId = anchor?.id;
+  const anchorTop = anchor?.getBoundingClientRect().top;
+  const previousScroll = window.scrollY;
+  editing = true;
+  $("#edit-button").classList.add("hidden");
+  $("#save-button").classList.remove("hidden");
+  renderContent();
+  requestAnimationFrame(() => {
+    const replacement = anchorId ? document.getElementById(anchorId) : null;
+    if (replacement && anchorTop !== undefined) window.scrollBy(0, replacement.getBoundingClientRect().top - anchorTop);
+    else window.scrollTo(0, previousScroll);
+  });
+});
 $("#save-button").addEventListener("click", async () => {
   await setDoc(doc(db, "training", "guide"), { sections, updatedAt: new Date().toISOString() });
   editing = false;
