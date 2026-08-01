@@ -11,6 +11,7 @@ const s2ClosingTopics = [
   { id: "s2-omomi", title: "OMOMI", summary: "", details: "☐ Turn off the Omomi TV.\n☐ Turn off Omomi lights if their staff have already left and forgot.", videoTitle: "", videoUrl: "" },
   { id: "s2-exit", title: "EXIT", summary: "", details: "☐ Bring in the sandwich board and lock the front door.\n☐ Pull down the lobby shades.\n☐ Exit through the back door and double-check that it is locked.", videoTitle: "", videoUrl: "" },
 ];
+const guideStructureVersion = 1;
 
 const starterSections = [
   {
@@ -128,10 +129,13 @@ async function handleAuth(user) {
   const snapshot = await getDoc(doc(db, "training", "guide"));
   const saved = snapshot.exists() ? snapshot.data() : null;
   const loadedSections = saved?.sections || structuredClone(starterSections);
-  const migration = splitS2ClosingProcedure(loadedSections);
-  sections = migration.sections;
-  if (migration.changed && user.uid === ownerUid) {
-    await setDoc(doc(db, "training", "guide"), { sections, updatedAt: new Date().toISOString() });
+  const closingMigration = splitS2ClosingProcedure(loadedSections);
+  const treeMigration = (saved?.structureVersion || 0) < guideStructureVersion
+    ? applyChecklistTree(closingMigration.sections)
+    : { sections: closingMigration.sections, changed: false };
+  sections = treeMigration.sections;
+  if ((closingMigration.changed || treeMigration.changed) && user.uid === ownerUid) {
+    await setDoc(doc(db, "training", "guide"), { sections, structureVersion: guideStructureVersion, updatedAt: new Date().toISOString() });
   }
   render();
 }
@@ -147,6 +151,45 @@ function splitS2ClosingProcedure(sourceSections) {
     changed = true;
   }
   return { sections: migrated, changed };
+}
+
+function applyChecklistTree(sourceSections) {
+  const migrated = structuredClone(sourceSections);
+  const office = migrated.find((section) => section.id === "office");
+  const shift1 = office?.groups.find((group) => group.topics.some((topic) => topic.id === "s1-outside"));
+  const shift2 = office?.groups.find((group) => group.topics.some((topic) => topic.id === "s2-beginning"));
+
+  if (shift1) {
+    shift1.title = "Shift 1 Checklist";
+    const openingIds = ["s1-outside", "s1-passcodes", "s1-bathrooms", "s1-lunch-room", "s1-front-desk", "s1-massage-rooms", "s1-linen"];
+    shift1.topics.forEach((topic) => {
+      if (openingIds.includes(topic.id)) topic.menuParent = "Opening";
+      else delete topic.menuParent;
+      delete topic.treeHidden;
+    });
+    const requestedOrder = [...openingIds, "s1-during", "s1-end"];
+    const knownTopics = new Map(shift1.topics.map((topic) => [topic.id, topic]));
+    const requestedTopics = requestedOrder.map((id) => knownTopics.get(id)).filter(Boolean);
+    const additionalTopics = shift1.topics.filter((topic) => !requestedOrder.includes(topic.id));
+    shift1.topics = [...requestedTopics, ...additionalTopics];
+  }
+
+  if (shift2) {
+    shift2.title = "Shift 2";
+    const closingIds = ["s2-wellness", "s2-turn-off", "s2-restock-reset", "s2-trash", "s2-omomi", "s2-exit"];
+    shift2.topics.forEach((topic) => {
+      if (closingIds.includes(topic.id)) topic.menuParent = "Closing";
+      else delete topic.menuParent;
+      topic.treeHidden = topic.id === "s2-wellness";
+    });
+    const requestedOrder = ["s2-beginning", ...closingIds];
+    const knownTopics = new Map(shift2.topics.map((topic) => [topic.id, topic]));
+    const requestedTopics = requestedOrder.map((id) => knownTopics.get(id)).filter(Boolean);
+    const additionalTopics = shift2.topics.filter((topic) => !requestedOrder.includes(topic.id));
+    shift2.topics = [...requestedTopics, ...additionalTopics];
+  }
+
+  return { sections: migrated, changed: true };
 }
 
 $("#login-form").addEventListener("submit", async (event) => {
@@ -188,7 +231,7 @@ $("#edit-button").addEventListener("click", () => {
   });
 });
 $("#save-button").addEventListener("click", async () => {
-  await setDoc(doc(db, "training", "guide"), { sections, updatedAt: new Date().toISOString() });
+  await setDoc(doc(db, "training", "guide"), { sections, structureVersion: guideStructureVersion, updatedAt: new Date().toISOString() });
   editing = false;
   $("#save-button").classList.add("hidden");
   $("#edit-button").classList.remove("hidden");
@@ -587,27 +630,54 @@ function renderContent() {
     }
     treeGroup.append(groupHeading);
     const list = document.createElement("ul");
+    const nestedLists = new Map();
 
     const contentGroup = document.createElement("section");
     contentGroup.className = "content-group";
     contentGroup.id = groupTarget;
     contentGroup.innerHTML = `<p class="group-kicker">${escapeHtml(group.title)}</p>`;
+    let activeContentParent = "";
 
     matchingTopics.forEach((topic) => {
-      const item = document.createElement("li");
-      item.innerHTML = `<a href="#${topic.id}">${escapeHtml(topic.title || "Untitled topic")}</a>`;
-      if (editing) {
-        item.className = "menu-topic-editor";
-        const topicIndex = group.topics.findIndex((currentTopic) => currentTopic.id === topic.id);
-        const controls = document.createElement("span");
-        controls.className = "topic-reorder-controls";
-        controls.append(
-          reorderButton("↑", `Move ${topic.title || "untitled topic"} up`, topicIndex === 0, () => moveTopic(section.id, groupIndex, topicIndex, -1)),
-          reorderButton("↓", `Move ${topic.title || "untitled topic"} down`, topicIndex === group.topics.length - 1, () => moveTopic(section.id, groupIndex, topicIndex, 1)),
-        );
-        item.append(controls);
+      const parentTarget = topic.menuParent ? `subgroup-${groupIndex}-${topic.menuParent.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : "";
+      if (!topic.treeHidden) {
+        let topicList = list;
+        if (topic.menuParent) {
+          if (!nestedLists.has(topic.menuParent)) {
+            const parentItem = document.createElement("li");
+            parentItem.className = "tree-parent";
+            parentItem.innerHTML = `<a href="#${parentTarget}">${escapeHtml(topic.menuParent)}</a>`;
+            const nestedList = document.createElement("ul");
+            parentItem.append(nestedList);
+            list.append(parentItem);
+            nestedLists.set(topic.menuParent, nestedList);
+          }
+          topicList = nestedLists.get(topic.menuParent);
+        }
+        const item = document.createElement("li");
+        item.innerHTML = `<a href="#${topic.id}">${escapeHtml(topic.title || "Untitled topic")}</a>`;
+        if (editing) {
+          item.className = "menu-topic-editor";
+          const topicIndex = group.topics.findIndex((currentTopic) => currentTopic.id === topic.id);
+          const controls = document.createElement("span");
+          controls.className = "topic-reorder-controls";
+          controls.append(
+            reorderButton("↑", `Move ${topic.title || "untitled topic"} up`, topicIndex === 0, () => moveTopic(section.id, groupIndex, topicIndex, -1)),
+            reorderButton("↓", `Move ${topic.title || "untitled topic"} down`, topicIndex === group.topics.length - 1, () => moveTopic(section.id, groupIndex, topicIndex, 1)),
+          );
+          item.append(controls);
+        }
+        topicList.append(item);
       }
-      list.append(item);
+
+      if (topic.menuParent && topic.menuParent !== activeContentParent) {
+        const subgroupHeading = document.createElement("h2");
+        subgroupHeading.className = "content-subgroup-title";
+        subgroupHeading.id = parentTarget;
+        subgroupHeading.textContent = topic.menuParent;
+        contentGroup.append(subgroupHeading);
+      }
+      activeContentParent = topic.menuParent || "";
 
       const article = document.createElement("article");
       article.className = "topic-section";
