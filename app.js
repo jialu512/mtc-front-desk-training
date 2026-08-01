@@ -272,8 +272,17 @@ function moveGroup(sectionId, groupIndex, direction) {
 function moveTopic(sectionId, groupIndex, topicIndex, direction) {
   const section = sections.find((item) => item.id === sectionId);
   const group = section?.groups[groupIndex];
-  const targetIndex = topicIndex + direction;
-  if (!group || targetIndex < 0 || targetIndex >= group.topics.length) return;
+  if (!group) return;
+  const topic = group.topics[topicIndex];
+  const siblingIndices = group.topics.reduce((indices, candidate, index) => {
+    const sameParent = (candidate.parentId || "") === (topic.parentId || "");
+    const sameMenuParent = (candidate.menuParent || "") === (topic.menuParent || "");
+    if (sameParent && sameMenuParent && !candidate.treeHidden) indices.push(index);
+    return indices;
+  }, []);
+  const siblingPosition = siblingIndices.indexOf(topicIndex);
+  const targetIndex = siblingIndices[siblingPosition + direction];
+  if (targetIndex === undefined) return;
   const anchorId = group.topics[topicIndex].id;
   const anchorTop = document.getElementById(anchorId)?.getBoundingClientRect().top;
   const topics = [...group.topics];
@@ -310,6 +319,37 @@ function addTopic(sectionId, groupIndex) {
   sections = sections.map((section) => section.id !== sectionId ? section : {
     ...section,
     groups: section.groups.map((group, index) => index === groupIndex ? { ...group, topics: [...group.topics, newTopic] } : group),
+  });
+  renderContent();
+  requestAnimationFrame(() => {
+    const article = document.getElementById(topicId);
+    article?.scrollIntoView({ behavior: "smooth", block: "center" });
+    article?.querySelector(".topic-title-input")?.focus();
+  });
+}
+
+function addChildTopic(sectionId, groupIndex, parentId) {
+  const topicId = `topic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const newTopic = { id: topicId, parentId, title: "", summary: "", details: "", videoTitle: "", videoUrl: "" };
+  sections = sections.map((section) => section.id !== sectionId ? section : {
+    ...section,
+    groups: section.groups.map((group, index) => {
+      if (index !== groupIndex) return group;
+      const topics = [...group.topics];
+      const topicById = new Map(topics.map((topic) => [topic.id, topic]));
+      const isDescendant = (topic, ancestorId) => {
+        let currentParent = topic.parentId;
+        while (currentParent) {
+          if (currentParent === ancestorId) return true;
+          currentParent = topicById.get(currentParent)?.parentId;
+        }
+        return false;
+      };
+      let insertIndex = topics.findIndex((topic) => topic.id === parentId) + 1;
+      while (insertIndex < topics.length && isDescendant(topics[insertIndex], parentId)) insertIndex += 1;
+      topics.splice(insertIndex, 0, newTopic);
+      return { ...group, topics };
+    }),
   });
   renderContent();
   requestAnimationFrame(() => {
@@ -702,6 +742,7 @@ function renderContent() {
     treeGroup.append(groupHeading);
     const list = document.createElement("ul");
     const nestedLists = new Map();
+    const menuItems = new Map();
 
     const contentGroup = document.createElement("section");
     contentGroup.className = "content-group";
@@ -712,33 +753,30 @@ function renderContent() {
     matchingTopics.forEach((topic) => {
       const parentTarget = topic.menuParent ? `subgroup-${groupIndex}-${topic.menuParent.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : "";
       if (!topic.treeHidden) {
-        let topicList = list;
-        if (topic.menuParent) {
-          if (!nestedLists.has(topic.menuParent)) {
-            const parentItem = document.createElement("li");
-            parentItem.className = "tree-parent";
-            parentItem.innerHTML = `<a href="#${parentTarget}">${escapeHtml(topic.menuParent)}</a>`;
-            const nestedList = document.createElement("ul");
-            parentItem.append(nestedList);
-            list.append(parentItem);
-            nestedLists.set(topic.menuParent, nestedList);
-          }
-          topicList = nestedLists.get(topic.menuParent);
-        }
         const item = document.createElement("li");
         item.innerHTML = `<a href="#${topic.id}">${escapeHtml(topic.title || "Untitled topic")}</a>`;
         if (editing) {
           item.className = "menu-topic-editor";
           const topicIndex = group.topics.findIndex((currentTopic) => currentTopic.id === topic.id);
+          const siblings = group.topics.filter((candidate) => (candidate.parentId || "") === (topic.parentId || "") && (candidate.menuParent || "") === (topic.menuParent || "") && !candidate.treeHidden);
+          const siblingIndex = siblings.findIndex((candidate) => candidate.id === topic.id);
           const controls = document.createElement("span");
           controls.className = "topic-reorder-controls";
           controls.append(
-            reorderButton("↑", `Move ${topic.title || "untitled topic"} up`, topicIndex === 0, () => moveTopic(section.id, groupIndex, topicIndex, -1)),
-            reorderButton("↓", `Move ${topic.title || "untitled topic"} down`, topicIndex === group.topics.length - 1, () => moveTopic(section.id, groupIndex, topicIndex, 1)),
+            reorderButton("↑", `Move ${topic.title || "untitled topic"} up`, siblingIndex === 0, () => moveTopic(section.id, groupIndex, topicIndex, -1)),
+            reorderButton("↓", `Move ${topic.title || "untitled topic"} down`, siblingIndex === siblings.length - 1, () => moveTopic(section.id, groupIndex, topicIndex, 1)),
           );
+          const addChild = document.createElement("button");
+          addChild.type = "button";
+          addChild.className = "add-child-button";
+          addChild.textContent = "+";
+          addChild.title = `Add topic under ${topic.title || "this item"}`;
+          addChild.setAttribute("aria-label", `Add topic under ${topic.title || "this item"}`);
+          addChild.addEventListener("click", () => addChildTopic(section.id, groupIndex, topic.id));
+          controls.append(addChild);
           item.append(controls);
         }
-        topicList.append(item);
+        menuItems.set(topic.id, item);
       }
 
       if (topic.menuParent && topic.menuParent !== activeContentParent) {
@@ -767,6 +805,37 @@ function renderContent() {
         if (video) article.insertAdjacentHTML("beforeend", `<div class="video-block"><div class="video-label"><span class="play-dot">▶</span>${escapeHtml(topic.videoTitle || "Training video")}</div><div class="video-frame"><iframe src="${video}" title="${escapeHtml(topic.videoTitle || topic.title)}" allowfullscreen></iframe></div></div>`);
       }
       contentGroup.append(article);
+    });
+
+    matchingTopics.forEach((topic) => {
+      if (topic.treeHidden || !menuItems.has(topic.id)) return;
+      const item = menuItems.get(topic.id);
+      if (topic.parentId && menuItems.has(topic.parentId)) {
+        const parentItem = menuItems.get(topic.parentId);
+        let childList = parentItem.querySelector("ul.topic-children");
+        if (!childList) {
+          childList = document.createElement("ul");
+          childList.className = "topic-children";
+          parentItem.append(childList);
+        }
+        childList.append(item);
+        return;
+      }
+      if (topic.menuParent) {
+        if (!nestedLists.has(topic.menuParent)) {
+          const parentTarget = `subgroup-${groupIndex}-${topic.menuParent.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+          const parentItem = document.createElement("li");
+          parentItem.className = "tree-parent";
+          parentItem.innerHTML = `<a href="#${parentTarget}">${escapeHtml(topic.menuParent)}</a>`;
+          const nestedList = document.createElement("ul");
+          parentItem.append(nestedList);
+          list.append(parentItem);
+          nestedLists.set(topic.menuParent, nestedList);
+        }
+        nestedLists.get(topic.menuParent).append(item);
+        return;
+      }
+      list.append(item);
     });
     treeGroup.append(list);
     tree.append(treeGroup);
