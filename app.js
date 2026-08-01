@@ -655,6 +655,20 @@ function normalizeLinkUrl(value) {
   }
 }
 
+function videoLinkIcon(topic, compact = false) {
+  const url = normalizeLinkUrl(topic.videoUrl || "");
+  if (!url) return null;
+  const link = document.createElement("a");
+  link.className = compact ? "video-link-icon compact-video-icon" : "video-link-icon";
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.title = `Open ${topic.videoTitle || topic.title || "training video"}`;
+  link.setAttribute("aria-label", link.title);
+  link.textContent = "▶";
+  return link;
+}
+
 function normalizePhotoUrl(value) {
   if (/^data:image\/(?:jpeg|png|webp);base64,/i.test(value) && value.length <= 320000) return value;
   try {
@@ -802,7 +816,9 @@ function renderContent() {
       const parentTarget = topic.menuParent ? `subgroup-${groupIndex}-${topic.menuParent.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : "";
       if (!topic.treeHidden) {
         const item = document.createElement("li");
-        item.innerHTML = `<a href="#${topic.id}">${escapeHtml(topic.title || "Untitled topic")}</a>`;
+        item.innerHTML = `<a class="menu-topic-title" href="#${topic.id}">${escapeHtml(topic.title || "Untitled topic")}</a>`;
+        const menuVideoIcon = videoLinkIcon(topic, true);
+        if (menuVideoIcon) item.append(menuVideoIcon);
         if (editing) {
           item.className = "menu-topic-editor";
           const topicIndex = group.topics.findIndex((currentTopic) => currentTopic.id === topic.id);
@@ -857,7 +873,10 @@ function renderContent() {
       } else {
         article.innerHTML = `<h2>${highlight(topic.title)}</h2>${topic.summary ? `<p class="summary">${highlight(topic.summary)}</p>` : ""}${topic.details ? `<div class="details">${richTextHtml(topic.details)}</div>` : ""}`;
         const video = embedUrl(topic.videoUrl);
-        if (video) article.insertAdjacentHTML("beforeend", `<div class="video-block"><div class="video-label"><span class="play-dot">▶</span>${escapeHtml(topic.videoTitle || "Training video")}</div><div class="video-frame"><iframe src="${video}" title="${escapeHtml(topic.videoTitle || topic.title)}" allowfullscreen></iframe></div></div>`);
+        const topicVideoIcon = videoLinkIcon(topic);
+        if (topicVideoIcon) article.querySelector("h2")?.append(topicVideoIcon);
+        const originalVideoUrl = normalizeLinkUrl(topic.videoUrl || "");
+        if (video && originalVideoUrl) article.insertAdjacentHTML("beforeend", `<div class="video-block"><a class="video-label" href="${escapeHtml(originalVideoUrl)}" target="_blank" rel="noopener noreferrer"><span class="play-dot">▶</span>${escapeHtml(topic.videoTitle || "Training video")}</a><div class="video-frame"><iframe src="${video}" title="${escapeHtml(topic.videoTitle || topic.title)}" allowfullscreen></iframe></div></div>`);
       }
       contentGroup.append(article);
     });
