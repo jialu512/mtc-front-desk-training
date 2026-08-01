@@ -106,6 +106,7 @@ let currentUser = null;
 let searchTerm = "";
 let db;
 let auth;
+let invitationAuth;
 let signupInProgress = false;
 let accessUnsubscribe = null;
 
@@ -116,6 +117,7 @@ if (!configured) {
 } else {
   const app = initializeApp(firebaseConfig);
   auth = getAuth(app);
+  invitationAuth = getAuth(initializeApp(firebaseConfig, "staff-invitations"));
   db = getFirestore(app);
   onAuthStateChanged(auth, handleAuth);
 }
@@ -351,24 +353,25 @@ $("#invite-form").addEventListener("submit", async (event) => {
   if (!email) return;
   try {
     await setDoc(doc(db, "invites", email), { email, active: true, invitedAt: new Date().toISOString(), invitedBy: currentUser.uid });
+    try {
+      await createUserWithEmailAndPassword(invitationAuth, email, temporaryInvitationPassword());
+      await signOut(invitationAuth);
+    } catch (failure) {
+      if (failure?.code !== "auth/email-already-in-use") throw failure;
+    }
+    await sendPasswordResetEmail(invitationAuth, email);
     $("#invite-email").value = "";
-    message.textContent = `${email} can now create an account.`;
+    message.textContent = `Invitation email sent to ${email}.`;
     await renderStaffInvitations();
   } catch {
-    message.textContent = "The invitation could not be saved.";
+    message.textContent = "The invitation could not be emailed. Check the address and try again.";
   }
 });
-$("#copy-signup-link").addEventListener("click", async () => {
-  const url = new URL(window.location.href);
-  url.hash = "";
-  url.search = "?signup=1";
-  try {
-    await navigator.clipboard.writeText(url.href);
-    $("#invite-message").textContent = "Signup link copied. Send it to the invited staff member.";
-  } catch {
-    $("#invite-message").textContent = `Signup link: ${url.href}`;
-  }
-});
+
+function temporaryInvitationPassword() {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return `${Array.from(bytes, (byte) => byte.toString(36)).join("")}Aa1!`;
+}
 
 async function openStaffManager() {
   $("#staff-manager").classList.remove("hidden");
