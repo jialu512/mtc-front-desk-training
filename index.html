@@ -45,7 +45,29 @@
         <p id="login-error" class="error" aria-live="polite"></p>
         <button class="primary-button" type="submit">Sign in</button>
         <button id="forgot-password" class="text-button" type="button">Forgot password?</button>
+        <button id="show-signup" class="text-button" type="button">I received an invitation</button>
       </form>
+      <form id="signup-form" class="auth-card hidden">
+        <p class="eyebrow">Invited staff</p>
+        <h2>Create your account</h2>
+        <p class="muted">Use the exact email address your manager invited.</p>
+        <label>Email address<input id="signup-email" type="email" autocomplete="username" required /></label>
+        <label>Create password<input id="signup-password" type="password" autocomplete="new-password" minlength="6" required /></label>
+        <label>Confirm password<input id="signup-password-confirmation" type="password" autocomplete="new-password" minlength="6" required /></label>
+        <p id="signup-error" class="error" aria-live="polite"></p>
+        <button class="primary-button" type="submit">Create account</button>
+        <button id="show-login" class="text-button" type="button">Back to sign in</button>
+      </form>
+    </section>
+
+    <section id="access-denied" class="center-screen hidden">
+      <div class="auth-card">
+        <div class="brand-mark">F</div>
+        <p class="eyebrow">Access unavailable</p>
+        <h2>No active invitation</h2>
+        <p class="muted"><span id="access-denied-email"></span> does not currently have access. Ask your manager for an invitation.</p>
+        <button id="access-denied-sign-out" class="primary-button" type="button">Use a different account</button>
+      </div>
     </section>
 
     <main id="site-view" class="hidden">
@@ -56,6 +78,7 @@
         </a>
         <div class="header-actions">
           <span id="user-email" class="user-email"></span>
+          <button id="manage-staff" class="outline-button compact hidden">Manage staff</button>
           <button id="edit-button" class="outline-button hidden">Edit this guide</button>
           <button id="save-button" class="primary-button compact hidden">Save changes</button>
           <button id="sign-out" class="text-button">Sign out</button>
@@ -72,6 +95,24 @@
       <footer><span>Front Desk Training Field Guide</span><span>Questions? Ask your manager or shift lead.</span></footer>
     </main>
 
-    <script type="module" src="./app.js?v=28"></script>
+    <section id="staff-manager" class="staff-manager-backdrop hidden" aria-label="Manage staff access">
+      <div class="staff-manager-card">
+        <div class="staff-manager-heading">
+          <div><p class="eyebrow">Owner controls</p><h2>Staff access</h2></div>
+          <button id="close-staff-manager" class="text-button" type="button" aria-label="Close staff access">×</button>
+        </div>
+        <form id="invite-form" class="invite-form">
+          <label>Staff email address<input id="invite-email" type="email" placeholder="staff@example.com" required /></label>
+          <button class="primary-button compact" type="submit">Allow signup</button>
+        </form>
+        <button id="copy-signup-link" class="outline-button compact" type="button">Copy signup link</button>
+        <p id="invite-message" class="staff-message" aria-live="polite"></p>
+        <h3>People with access</h3>
+        <ul id="staff-list" class="staff-list"></ul>
+        <p class="muted staff-note">Removing access blocks the person from the training guide. You can permanently delete their Firebase account separately if desired.</p>
+      </div>
+    </section>
+
+    <script type="module" src="./app.js?v=29"></script>
   </body>
 </html>
