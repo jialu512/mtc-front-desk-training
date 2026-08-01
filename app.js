@@ -179,6 +179,54 @@ function updateGroup(sectionId, groupIndex, value) {
   });
 }
 
+function keepAnchorAfterRender(anchorId, anchorTop) {
+  renderContent();
+  requestAnimationFrame(() => {
+    const replacement = document.getElementById(anchorId);
+    if (replacement && anchorTop !== undefined) window.scrollBy(0, replacement.getBoundingClientRect().top - anchorTop);
+  });
+}
+
+function moveGroup(sectionId, groupIndex, direction) {
+  const section = sections.find((item) => item.id === sectionId);
+  const targetIndex = groupIndex + direction;
+  if (!section || targetIndex < 0 || targetIndex >= section.groups.length) return;
+  const anchorId = `group-${section.groups[groupIndex].topics[0].id}`;
+  const anchorTop = document.getElementById(anchorId)?.getBoundingClientRect().top;
+  const groups = [...section.groups];
+  [groups[groupIndex], groups[targetIndex]] = [groups[targetIndex], groups[groupIndex]];
+  sections = sections.map((item) => item.id === sectionId ? { ...item, groups } : item);
+  keepAnchorAfterRender(anchorId, anchorTop);
+}
+
+function moveTopic(sectionId, groupIndex, topicIndex, direction) {
+  const section = sections.find((item) => item.id === sectionId);
+  const group = section?.groups[groupIndex];
+  const targetIndex = topicIndex + direction;
+  if (!group || targetIndex < 0 || targetIndex >= group.topics.length) return;
+  const anchorId = group.topics[topicIndex].id;
+  const anchorTop = document.getElementById(anchorId)?.getBoundingClientRect().top;
+  const topics = [...group.topics];
+  [topics[topicIndex], topics[targetIndex]] = [topics[targetIndex], topics[topicIndex]];
+  sections = sections.map((item) => item.id !== sectionId ? item : {
+    ...item,
+    groups: item.groups.map((currentGroup, index) => index === groupIndex ? { ...currentGroup, topics } : currentGroup),
+  });
+  keepAnchorAfterRender(anchorId, anchorTop);
+}
+
+function reorderButton(label, title, disabled, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "reorder-button";
+  button.textContent = label;
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  button.disabled = disabled;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
 function updateTopic(sectionId, topicId, key, value) {
   sections = sections.map((section) => section.id !== sectionId ? section : {
     ...section,
@@ -501,7 +549,12 @@ function renderContent() {
       addSubitem.title = `Add item to ${group.title}`;
       addSubitem.setAttribute("aria-label", `Add item to ${group.title}`);
       addSubitem.addEventListener("click", () => addTopic(section.id, groupIndex));
-      groupHeading.append(groupName, addSubitem);
+      groupHeading.append(
+        groupName,
+        reorderButton("↑", `Move ${group.title} up`, groupIndex === 0, () => moveGroup(section.id, groupIndex, -1)),
+        reorderButton("↓", `Move ${group.title} down`, groupIndex === section.groups.length - 1, () => moveGroup(section.id, groupIndex, 1)),
+        addSubitem,
+      );
     } else {
       groupHeading.innerHTML = `<a href="#${groupTarget}">${escapeHtml(group.title)}</a>`;
     }
@@ -516,6 +569,17 @@ function renderContent() {
     matchingTopics.forEach((topic) => {
       const item = document.createElement("li");
       item.innerHTML = `<a href="#${topic.id}">${escapeHtml(topic.title || "Untitled topic")}</a>`;
+      if (editing) {
+        item.className = "menu-topic-editor";
+        const topicIndex = group.topics.findIndex((currentTopic) => currentTopic.id === topic.id);
+        const controls = document.createElement("span");
+        controls.className = "topic-reorder-controls";
+        controls.append(
+          reorderButton("↑", `Move ${topic.title || "untitled topic"} up`, topicIndex === 0, () => moveTopic(section.id, groupIndex, topicIndex, -1)),
+          reorderButton("↓", `Move ${topic.title || "untitled topic"} down`, topicIndex === group.topics.length - 1, () => moveTopic(section.id, groupIndex, topicIndex, 1)),
+        );
+        item.append(controls);
+      }
       list.append(item);
 
       const article = document.createElement("article");
