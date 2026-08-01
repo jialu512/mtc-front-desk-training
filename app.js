@@ -359,6 +359,37 @@ function addChildTopic(sectionId, groupIndex, parentId) {
   });
 }
 
+function deleteTopic(sectionId, groupIndex, topicId) {
+  const section = sections.find((item) => item.id === sectionId);
+  const group = section?.groups[groupIndex];
+  const topic = group?.topics.find((item) => item.id === topicId);
+  if (!group || !topic) return;
+  const idsToDelete = new Set([topicId]);
+  let foundChild = true;
+  while (foundChild) {
+    foundChild = false;
+    group.topics.forEach((candidate) => {
+      if (candidate.parentId && idsToDelete.has(candidate.parentId) && !idsToDelete.has(candidate.id)) {
+        idsToDelete.add(candidate.id);
+        foundChild = true;
+      }
+    });
+  }
+  const nestedCount = idsToDelete.size - 1;
+  const label = topic.title || "Untitled topic";
+  const message = nestedCount
+    ? `Delete “${label}” and its ${nestedCount} nested topic${nestedCount === 1 ? "" : "s"}? This cannot be undone after you save.`
+    : `Delete “${label}”? This cannot be undone after you save.`;
+  if (!window.confirm(message)) return;
+  sections = sections.map((item) => item.id !== sectionId ? item : {
+    ...item,
+    groups: item.groups.map((currentGroup, index) => index === groupIndex
+      ? { ...currentGroup, topics: currentGroup.topics.filter((candidate) => !idsToDelete.has(candidate.id)) }
+      : currentGroup),
+  });
+  renderContent();
+}
+
 function field(tag, value, className, onChange, placeholder = "") {
   const element = document.createElement(tag);
   element.value = value;
@@ -712,12 +743,12 @@ function renderContent() {
   let matchCount = 0;
   section.groups.forEach((group, groupIndex) => {
     const matchingTopics = group.topics.filter((topic) => !searchTerm || [topic.title, topic.summary, topic.details, group.title].join(" ").toLowerCase().includes(searchTerm));
-    if (!matchingTopics.length) return;
+    if (!matchingTopics.length && !editing) return;
     matchCount += matchingTopics.length;
 
     const treeGroup = document.createElement("div");
     treeGroup.className = "tree-group";
-    const groupTarget = `group-${group.topics[0].id}`;
+    const groupTarget = group.topics[0] ? `group-${group.topics[0].id}` : `group-${section.id}-${groupIndex}`;
     const groupHeading = document.createElement("h3");
     if (editing) {
       groupHeading.className = "group-menu-editor";
@@ -773,7 +804,14 @@ function renderContent() {
           addChild.title = `Add topic under ${topic.title || "this item"}`;
           addChild.setAttribute("aria-label", `Add topic under ${topic.title || "this item"}`);
           addChild.addEventListener("click", () => addChildTopic(section.id, groupIndex, topic.id));
-          controls.append(addChild);
+          const deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "delete-topic-button";
+          deleteButton.textContent = "×";
+          deleteButton.title = `Delete ${topic.title || "this item"}`;
+          deleteButton.setAttribute("aria-label", `Delete ${topic.title || "this item"}`);
+          deleteButton.addEventListener("click", () => deleteTopic(section.id, groupIndex, topic.id));
+          controls.append(addChild, deleteButton);
           item.append(controls);
         }
         menuItems.set(topic.id, item);
