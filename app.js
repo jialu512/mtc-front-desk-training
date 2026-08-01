@@ -356,7 +356,7 @@ function detailsEditor(value, onChange) {
     rememberSelection();
     onChange(editor.innerHTML);
   };
-  const insertNode = (node) => {
+  const insertNode = (node, inline = false) => {
     editor.focus();
     const selection = window.getSelection();
     let range = savedRange;
@@ -367,7 +367,7 @@ function detailsEditor(value, onChange) {
     }
     range.deleteContents();
     range.insertNode(node);
-    const spacer = document.createElement("br");
+    const spacer = inline ? document.createTextNode("\u00a0") : document.createElement("br");
     node.after(spacer);
     range.setStartAfter(spacer);
     range.collapse(true);
@@ -408,6 +408,23 @@ function detailsEditor(value, onChange) {
     });
   });
 
+  const linkButton = document.createElement("button");
+  linkButton.type = "button";
+  linkButton.textContent = "Link";
+  linkButton.title = "Insert link";
+  linkButton.addEventListener("mousedown", (event) => event.preventDefault());
+  linkButton.addEventListener("click", () => {
+    const selectedText = savedRange && !savedRange.collapsed ? savedRange.toString() : "";
+    openLinkDialog(selectedText, (url, label) => {
+      const link = document.createElement("a");
+      link.href = url;
+      link.textContent = label || url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      insertNode(link, true);
+    });
+  });
+
   toolbar.append(
     toolButton("• List", "insertUnorderedList", null, "Bullet list"),
     toolButton("→ Indent", "indent", null, "Increase indentation"),
@@ -417,6 +434,7 @@ function detailsEditor(value, onChange) {
     toolButton("Normal", "fontSize", "3", "Normal text"),
     toolButton("Large", "fontSize", "5", "Large text"),
     colorPicker,
+    linkButton,
     photoButton,
   );
   editor.addEventListener("keyup", rememberSelection);
@@ -424,6 +442,39 @@ function detailsEditor(value, onChange) {
   editor.addEventListener("input", () => onChange(editor.innerHTML));
   wrapper.append(toolbar, editor);
   return wrapper;
+}
+
+function openLinkDialog(selectedText, onInsert) {
+  document.querySelector(".photo-dialog-backdrop")?.remove();
+  const backdrop = document.createElement("div");
+  backdrop.className = "photo-dialog-backdrop";
+  const form = document.createElement("form");
+  form.className = "photo-dialog";
+  form.innerHTML = `
+    <h3>Insert link</h3>
+    <label>Link text<input name="link-text" type="text" placeholder="Text staff will see"></label>
+    <label>Web address<input name="link-url" type="text" inputmode="url" placeholder="https://"></label>
+    <p class="photo-dialog-error" aria-live="polite"></p>
+    <div class="photo-dialog-actions"><button type="button" data-cancel>Cancel</button><button type="submit">Insert</button></div>
+  `;
+  form.querySelector('[name="link-text"]').value = selectedText;
+  const close = () => backdrop.remove();
+  form.querySelector("[data-cancel]").addEventListener("click", close);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const url = normalizeLinkUrl(String(data.get("link-url") || ""));
+    if (!url) {
+      form.querySelector(".photo-dialog-error").textContent = "Enter a valid web address beginning with https:// or http://.";
+      return;
+    }
+    onInsert(url, String(data.get("link-text") || "").trim());
+    close();
+  });
+  backdrop.addEventListener("click", (event) => { if (event.target === backdrop) close(); });
+  backdrop.append(form);
+  document.body.append(backdrop);
+  form.querySelector(selectedText ? '[name="link-url"]' : '[name="link-text"]').focus();
 }
 
 function openPhotoDialog(onInsert) {
@@ -469,10 +520,10 @@ function openPhotoDialog(onInsert) {
 }
 
 function richTextHtml(value = "") {
-  const containsMarkup = /<(?:br|div|p|ul|ol|li|u|font|img)\b/i.test(value);
+  const containsMarkup = /<(?:br|div|p|ul|ol|li|u|font|img|a)\b/i.test(value);
   const template = document.createElement("template");
   template.innerHTML = containsMarkup ? value : escapeHtml(value).replace(/\n/g, "<br>");
-  const allowedTags = new Set(["BR", "DIV", "P", "UL", "OL", "LI", "U", "FONT", "IMG"]);
+  const allowedTags = new Set(["BR", "DIV", "P", "UL", "OL", "LI", "U", "FONT", "IMG", "A"]);
   Array.from(template.content.querySelectorAll("*")).forEach((element) => {
     if (!allowedTags.has(element.tagName)) {
       element.replaceWith(document.createTextNode(element.textContent || ""));
@@ -488,12 +539,32 @@ function richTextHtml(value = "") {
       element.loading = "lazy";
       return;
     }
+    if (element.tagName === "A") {
+      const safeLink = normalizeLinkUrl(element.getAttribute("href") || "");
+      if (!safeLink) { element.replaceWith(document.createTextNode(element.textContent || "")); return; }
+      Array.from(element.attributes).forEach((attribute) => element.removeAttribute(attribute.name));
+      element.href = safeLink;
+      element.target = "_blank";
+      element.rel = "noopener noreferrer";
+      return;
+    }
     Array.from(element.attributes).forEach((attribute) => {
       const allowedFontAttribute = element.tagName === "FONT" && ["color", "size"].includes(attribute.name.toLowerCase());
       if (!allowedFontAttribute) element.removeAttribute(attribute.name);
     });
   });
   return template.innerHTML;
+}
+
+function normalizeLinkUrl(value) {
+  const trimmed = value.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return "";
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : "";
+  } catch {
+    return "";
+  }
 }
 
 function normalizePhotoUrl(value) {
