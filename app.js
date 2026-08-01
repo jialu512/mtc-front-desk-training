@@ -158,6 +158,21 @@ function updateTopic(sectionId, topicId, key, value) {
   });
 }
 
+function addTopic(sectionId, groupIndex) {
+  const topicId = `topic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const newTopic = { id: topicId, title: "", summary: "", details: "", videoTitle: "", videoUrl: "" };
+  sections = sections.map((section) => section.id !== sectionId ? section : {
+    ...section,
+    groups: section.groups.map((group, index) => index === groupIndex ? { ...group, topics: [...group.topics, newTopic] } : group),
+  });
+  renderContent();
+  requestAnimationFrame(() => {
+    const article = document.getElementById(topicId);
+    article?.scrollIntoView({ behavior: "smooth", block: "center" });
+    article?.querySelector(".topic-title-input")?.focus();
+  });
+}
+
 function field(tag, value, className, onChange, placeholder = "") {
   const element = document.createElement(tag);
   element.value = value;
@@ -438,7 +453,7 @@ function renderContent() {
   main.append(hero);
 
   let matchCount = 0;
-  section.groups.forEach((group) => {
+  section.groups.forEach((group, groupIndex) => {
     const matchingTopics = group.topics.filter((topic) => !searchTerm || [topic.title, topic.summary, topic.details, group.title].join(" ").toLowerCase().includes(searchTerm));
     if (!matchingTopics.length) return;
     matchCount += matchingTopics.length;
@@ -456,7 +471,7 @@ function renderContent() {
 
     matchingTopics.forEach((topic) => {
       const item = document.createElement("li");
-      item.innerHTML = `<a href="#${topic.id}">${escapeHtml(topic.title)}</a>`;
+      item.innerHTML = `<a href="#${topic.id}">${escapeHtml(topic.title || "Untitled topic")}</a>`;
       list.append(item);
 
       const article = document.createElement("article");
@@ -464,7 +479,7 @@ function renderContent() {
       article.id = topic.id;
       if (editing) {
         article.append(
-          field("input", topic.title, "topic-title-input", (value) => updateTopic(section.id, topic.id, "title", value)),
+          field("input", topic.title, "topic-title-input", (value) => updateTopic(section.id, topic.id, "title", value), "Topic title"),
           field("input", topic.summary, "summary-input", (value) => updateTopic(section.id, topic.id, "summary", value)),
           detailsEditor(topic.details, (value) => updateTopic(section.id, topic.id, "details", value)),
           field("input", topic.videoTitle || "", "video-input", (value) => updateTopic(section.id, topic.id, "videoTitle", value), "Video title (optional)"),
@@ -477,6 +492,14 @@ function renderContent() {
       }
       contentGroup.append(article);
     });
+    if (editing) {
+      const addButton = document.createElement("button");
+      addButton.type = "button";
+      addButton.className = "add-topic-button";
+      addButton.textContent = `+ Add item to ${group.title}`;
+      addButton.addEventListener("click", () => addTopic(section.id, groupIndex));
+      contentGroup.append(addButton);
+    }
     treeGroup.append(list);
     tree.append(treeGroup);
     main.append(contentGroup);
