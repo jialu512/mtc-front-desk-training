@@ -655,20 +655,6 @@ function normalizeLinkUrl(value) {
   }
 }
 
-function videoLinkIcon(topic, compact = false) {
-  const url = normalizeLinkUrl(topic.videoUrl || "");
-  if (!url) return null;
-  const link = document.createElement("a");
-  link.className = compact ? "video-link-icon compact-video-icon" : "video-link-icon";
-  link.href = url;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  link.title = `Open ${topic.videoTitle || topic.title || "training video"}`;
-  link.setAttribute("aria-label", link.title);
-  link.textContent = "▶";
-  return link;
-}
-
 function normalizePhotoUrl(value) {
   if (/^data:image\/(?:jpeg|png|webp);base64,/i.test(value) && value.length <= 320000) return value;
   try {
@@ -716,21 +702,72 @@ function compressLocalPhoto(file) {
   });
 }
 
-function embedUrl(url) {
+function videoThumbnailUrl(url) {
   if (!url) return "";
   try {
     const parsed = new URL(url);
-    if (parsed.hostname.includes("youtu.be")) return `https://www.youtube.com/embed/${parsed.pathname.slice(1)}`;
+    if (parsed.hostname.includes("youtu.be")) {
+      const id = parsed.pathname.split("/").filter(Boolean)[0];
+      return id ? `https://img.youtube.com/vi/${encodeURIComponent(id)}/hqdefault.jpg` : "";
+    }
     if (parsed.hostname.includes("youtube.com")) {
-      const id = parsed.searchParams.get("v") || parsed.pathname.split("/").pop();
-      return id ? `https://www.youtube.com/embed/${id}` : "";
+      const id = parsed.searchParams.get("v") || parsed.pathname.split("/").filter(Boolean).pop();
+      return id ? `https://img.youtube.com/vi/${encodeURIComponent(id)}/hqdefault.jpg` : "";
     }
     if (parsed.hostname.includes("drive.google.com")) {
-      const match = parsed.pathname.match(/\/d\/([^/]+)/);
-      return match ? `https://drive.google.com/file/d/${match[1]}/preview` : "";
+      const id = parsed.pathname.match(/\/d\/([^/]+)/)?.[1] || parsed.searchParams.get("id");
+      return id ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1200` : "";
     }
   } catch {}
   return "";
+}
+
+function videoPreview(topic) {
+  const url = normalizeLinkUrl(topic.videoUrl || "");
+  if (!url) return null;
+
+  const block = document.createElement("div");
+  block.className = "video-block";
+
+  const label = document.createElement("p");
+  label.className = "video-label";
+  label.textContent = topic.videoTitle || "Training video";
+
+  const link = document.createElement("a");
+  link.className = "video-preview-link";
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.title = `Open ${topic.videoTitle || topic.title || "training video"}`;
+  link.setAttribute("aria-label", link.title);
+
+  const thumbnailUrl = videoThumbnailUrl(topic.videoUrl || "");
+  if (thumbnailUrl) {
+    const image = document.createElement("img");
+    image.src = thumbnailUrl;
+    image.alt = `${topic.videoTitle || topic.title || "Training video"} preview`;
+    image.loading = "lazy";
+    image.addEventListener("error", () => {
+      image.remove();
+      link.classList.add("no-thumbnail");
+    });
+    link.append(image);
+  } else {
+    link.classList.add("no-thumbnail");
+  }
+
+  const play = document.createElement("span");
+  play.className = "video-preview-play";
+  play.setAttribute("aria-hidden", "true");
+  play.textContent = "▶";
+
+  const note = document.createElement("span");
+  note.className = "video-preview-note";
+  note.textContent = "Click to watch video";
+
+  link.append(play, note);
+  block.append(label, link);
+  return block;
 }
 
 function render() {
@@ -817,8 +854,6 @@ function renderContent() {
       if (!topic.treeHidden) {
         const item = document.createElement("li");
         item.innerHTML = `<a class="menu-topic-title" href="#${topic.id}">${escapeHtml(topic.title || "Untitled topic")}</a>`;
-        const menuVideoIcon = videoLinkIcon(topic, true);
-        if (menuVideoIcon) item.append(menuVideoIcon);
         if (editing) {
           item.className = "menu-topic-editor";
           const topicIndex = group.topics.findIndex((currentTopic) => currentTopic.id === topic.id);
@@ -872,11 +907,8 @@ function renderContent() {
         );
       } else {
         article.innerHTML = `<h2>${highlight(topic.title)}</h2>${topic.summary ? `<p class="summary">${highlight(topic.summary)}</p>` : ""}${topic.details ? `<div class="details">${richTextHtml(topic.details)}</div>` : ""}`;
-        const video = embedUrl(topic.videoUrl);
-        const topicVideoIcon = videoLinkIcon(topic);
-        if (topicVideoIcon) article.querySelector("h2")?.append(topicVideoIcon);
-        const originalVideoUrl = normalizeLinkUrl(topic.videoUrl || "");
-        if (video && originalVideoUrl) article.insertAdjacentHTML("beforeend", `<div class="video-block"><a class="video-label" href="${escapeHtml(originalVideoUrl)}" target="_blank" rel="noopener noreferrer"><span class="play-dot">▶</span>${escapeHtml(topic.videoTitle || "Training video")}</a><div class="video-frame"><iframe src="${video}" title="${escapeHtml(topic.videoTitle || topic.title)}" allowfullscreen></iframe></div></div>`);
+        const preview = videoPreview(topic);
+        if (preview) article.append(preview);
       }
       contentGroup.append(article);
     });
