@@ -26,7 +26,7 @@ const wellnessTopics = [
   { id: "wellness-gift-card-find", parentId: "wellness-gift-cards", title: "Find an existing GC", summary: "", details: "", videoTitle: "", videoUrl: "" },
   { id: "wellness-package", title: "Package", summary: "", details: "", videoTitle: "", videoUrl: "" },
 ];
-const guideStructureVersion = 2;
+const guideStructureVersion = 3;
 
 const starterSections = [
   {
@@ -141,8 +141,11 @@ async function handleAuth(user) {
   const wellnessMigration = previousStructureVersion < 2
     ? applyWellnessMenu(treeMigration.sections)
     : { sections: treeMigration.sections, changed: false };
-  sections = wellnessMigration.sections;
-  if ((closingMigration.changed || treeMigration.changed || wellnessMigration.changed) && user.uid === ownerUid) {
+  const wellnessHierarchyMigration = previousStructureVersion < 3
+    ? normalizeWellnessHierarchy(wellnessMigration.sections)
+    : { sections: wellnessMigration.sections, changed: false };
+  sections = wellnessHierarchyMigration.sections;
+  if ((closingMigration.changed || treeMigration.changed || wellnessMigration.changed || wellnessHierarchyMigration.changed) && user.uid === ownerUid) {
     await setDoc(doc(db, "training", "guide"), { sections, structureVersion: guideStructureVersion, updatedAt: new Date().toISOString() });
   }
   render();
@@ -206,6 +209,37 @@ function applyWellnessMenu(sourceSections) {
   if (!wellness) return { sections: migrated, changed: false };
   wellness.intro = "";
   wellness.groups = [{ title: "Wellness", topics: structuredClone(wellnessTopics) }];
+  return { sections: migrated, changed: true };
+}
+
+function normalizeWellnessHierarchy(sourceSections) {
+  const migrated = structuredClone(sourceSections);
+  const wellness = migrated.find((section) => section.id === "wellness");
+  const group = wellness?.groups.find((candidate) => candidate.topics.some((topic) => topic.id === "wellness-checkout"));
+  if (!group) return { sections: migrated, changed: false };
+
+  const checkoutOrder = [
+    "wellness-checkout",
+    "wellness-checkout-credit-card",
+    "wellness-checkout-account-balance",
+    "wellness-checkout-gc",
+    "wellness-checkout-cash",
+    "wellness-checkout-zelle-venmo",
+  ];
+  const topicsById = new Map(group.topics.map((topic) => [topic.id, topic]));
+  const checkout = topicsById.get("wellness-checkout");
+  if (checkout) delete checkout.parentId;
+  checkoutOrder.slice(1).forEach((id) => {
+    const topic = topicsById.get(id);
+    if (topic) topic.parentId = "wellness-checkout";
+  });
+
+  const checkoutTopics = checkoutOrder.map((id) => topicsById.get(id)).filter(Boolean);
+  const remainingTopics = group.topics.filter((topic) => !checkoutOrder.includes(topic.id));
+  const insertionPoint = Math.max(0, remainingTopics.findIndex((topic) => topic.id === "wellness-gift-cards"));
+  group.topics = insertionPoint > 0
+    ? [...remainingTopics.slice(0, insertionPoint), ...checkoutTopics, ...remainingTopics.slice(insertionPoint)]
+    : [...checkoutTopics, ...remainingTopics];
   return { sections: migrated, changed: true };
 }
 
@@ -895,7 +929,7 @@ function renderContent() {
       activeContentParent = topic.menuParent || "";
 
       const article = document.createElement("article");
-      article.className = "topic-section";
+      article.className = topic.parentId ? "topic-section topic-child-section" : "topic-section";
       article.id = topic.id;
       if (editing) {
         article.append(
@@ -906,7 +940,8 @@ function renderContent() {
           field("input", topic.videoUrl || "", "video-input", (value) => updateTopic(section.id, topic.id, "videoUrl", value), "YouTube or Google Drive video link"),
         );
       } else {
-        article.innerHTML = `<h2>${highlight(topic.title)}</h2>${topic.summary ? `<p class="summary">${highlight(topic.summary)}</p>` : ""}${topic.details ? `<div class="details">${richTextHtml(topic.details)}</div>` : ""}`;
+        const topicHeading = topic.parentId ? "h3" : "h2";
+        article.innerHTML = `<${topicHeading}>${highlight(topic.title)}</${topicHeading}>${topic.summary ? `<p class="summary">${highlight(topic.summary)}</p>` : ""}${topic.details ? `<div class="details">${richTextHtml(topic.details)}</div>` : ""}`;
         const preview = videoPreview(topic);
         if (preview) article.append(preview);
       }
