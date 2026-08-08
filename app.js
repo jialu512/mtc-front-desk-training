@@ -563,6 +563,31 @@ function addChildTopic(sectionId, groupIndex, parentId) {
   });
 }
 
+function addMenuParentTopic(sectionId, groupIndex, menuParent) {
+  const topicId = `topic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const newTopic = { id: topicId, menuParent, title: "", summary: "", details: "", videoTitle: "", videoUrl: "" };
+  sections = sections.map((section) => section.id !== sectionId ? section : {
+    ...section,
+    groups: section.groups.map((group, index) => {
+      if (index !== groupIndex) return group;
+      const topics = [...group.topics];
+      const matchingIndices = topics.reduce((indices, topic, topicIndex) => {
+        if (topic.menuParent === menuParent) indices.push(topicIndex);
+        return indices;
+      }, []);
+      const insertIndex = matchingIndices.length ? matchingIndices.at(-1) + 1 : topics.length;
+      topics.splice(insertIndex, 0, newTopic);
+      return { ...group, topics };
+    }),
+  });
+  renderContent();
+  requestAnimationFrame(() => {
+    const article = document.getElementById(topicId);
+    article?.scrollIntoView({ behavior: "smooth", block: "center" });
+    article?.querySelector(".topic-title-input")?.focus();
+  });
+}
+
 function deleteTopic(sectionId, groupIndex, topicId) {
   const section = sections.find((item) => item.id === sectionId);
   const group = section?.groups[groupIndex];
@@ -1120,9 +1145,21 @@ function renderContent() {
           const parentTarget = `subgroup-${groupIndex}-${topic.menuParent.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
           const parentItem = document.createElement("li");
           parentItem.className = "tree-parent";
-          parentItem.innerHTML = `<a href="#${parentTarget}">${escapeHtml(topic.menuParent)}</a>`;
+          const parentHeading = document.createElement("span");
+          parentHeading.className = "tree-parent-heading";
+          parentHeading.innerHTML = `<a href="#${parentTarget}">${escapeHtml(topic.menuParent)}</a>`;
+          if (editing) {
+            const addToBranch = document.createElement("button");
+            addToBranch.type = "button";
+            addToBranch.className = "add-child-button";
+            addToBranch.textContent = "+";
+            addToBranch.title = `Add topic under ${topic.menuParent}`;
+            addToBranch.setAttribute("aria-label", `Add topic under ${topic.menuParent}`);
+            addToBranch.addEventListener("click", () => addMenuParentTopic(section.id, groupIndex, topic.menuParent));
+            parentHeading.append(addToBranch);
+          }
           const nestedList = document.createElement("ul");
-          parentItem.append(nestedList);
+          parentItem.append(parentHeading, nestedList);
           list.append(parentItem);
           nestedLists.set(topic.menuParent, nestedList);
         }
