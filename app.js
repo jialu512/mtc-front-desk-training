@@ -26,7 +26,15 @@ const wellnessTopics = [
   { id: "wellness-gift-card-find", parentId: "wellness-gift-cards", title: "Find an existing GC", summary: "", details: "", videoTitle: "", videoUrl: "" },
   { id: "wellness-package", title: "Package", summary: "", details: "", videoTitle: "", videoUrl: "" },
 ];
-const guideStructureVersion = 3;
+const omomiSquareSection = {
+  id: "omomi-square",
+  label: "Omomi Square",
+  eyebrow: "",
+  title: "Omomi Square Training",
+  intro: "",
+  groups: [{ title: "Omomi Square", topics: [] }],
+};
+const guideStructureVersion = 4;
 
 const starterSections = [
   {
@@ -79,6 +87,7 @@ const starterSections = [
       { title: "Wellness", topics: structuredClone(wellnessTopics) },
     ],
   },
+  structuredClone(omomiSquareSection),
   {
     id: "test",
     label: "Test",
@@ -167,8 +176,11 @@ async function handleAuth(user) {
   const wellnessHierarchyMigration = previousStructureVersion < 3
     ? normalizeWellnessHierarchy(wellnessMigration.sections)
     : { sections: wellnessMigration.sections, changed: false };
-  sections = wellnessHierarchyMigration.sections;
-  if ((closingMigration.changed || treeMigration.changed || wellnessMigration.changed || wellnessHierarchyMigration.changed) && user.uid === ownerUid) {
+  const omomiSquareMigration = previousStructureVersion < 4
+    ? addOmomiSquareSection(wellnessHierarchyMigration.sections)
+    : { sections: wellnessHierarchyMigration.sections, changed: false };
+  sections = omomiSquareMigration.sections;
+  if ((closingMigration.changed || treeMigration.changed || wellnessMigration.changed || wellnessHierarchyMigration.changed || omomiSquareMigration.changed) && user.uid === ownerUid) {
     await setDoc(doc(db, "training", "guide"), { sections, structureVersion: guideStructureVersion, updatedAt: new Date().toISOString() });
   }
   render();
@@ -279,6 +291,14 @@ function normalizeWellnessHierarchy(sourceSections) {
   group.topics = insertionPoint > 0
     ? [...remainingTopics.slice(0, insertionPoint), ...checkoutTopics, ...remainingTopics.slice(insertionPoint)]
     : [...checkoutTopics, ...remainingTopics];
+  return { sections: migrated, changed: true };
+}
+
+function addOmomiSquareSection(sourceSections) {
+  const migrated = structuredClone(sourceSections);
+  if (migrated.some((section) => section.id === "omomi-square")) return { sections: migrated, changed: false };
+  const wellnessIndex = migrated.findIndex((section) => section.id === "wellness");
+  migrated.splice(wellnessIndex >= 0 ? wellnessIndex + 1 : migrated.length, 0, structuredClone(omomiSquareSection));
   return { sections: migrated, changed: true };
 }
 
@@ -1173,7 +1193,7 @@ function renderContent() {
     main.append(contentGroup);
   });
 
-  if (!matchCount) main.insertAdjacentHTML("beforeend", `<div class="empty-search"><h2>No matching topics</h2><p>Try a different word or clear the search box.</p></div>`);
+  if (!matchCount && searchTerm) main.insertAdjacentHTML("beforeend", `<div class="empty-search"><h2>No matching topics</h2><p>Try a different word or clear the search box.</p></div>`);
   sidebar.append(tree);
   page.append(sidebar, main);
   content.append(page);
